@@ -7,7 +7,7 @@
  *
  *
  *  Distributed under License Apache License v2.0
- *  See license.ngrriscv_dumpsignature.md for license details.
+ *  See license.ngrriscv_bootloader.md for license details.
  */
 
 /**********************************************************************/

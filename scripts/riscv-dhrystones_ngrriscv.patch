@@ -1,0 +1,63 @@
+diff -Naur riscv-tests/benchmarks/common/syscalls.c riscv-tests_ngrriscv/benchmarks/common/syscalls.c
+--- riscv-tests/benchmarks/common/syscalls.c	2018-10-28 12:47:05.229500000 +0000
++++ riscv-tests_ngrriscv/benchmarks/common/syscalls.c	2018-10-28 12:45:55.988000000 +0000
+@@ -15,22 +15,33 @@
+ extern volatile uint64_t tohost;
+ extern volatile uint64_t fromhost;
+ 
++#define UART_BASE_ADDRESS        (0x8000C000)
++#define UART_DATA_TX_REG         (UART_BASE_ADDRESS + 0x0)
++#define UART_STATUS_REG          (UART_BASE_ADDRESS + 0x4)
++#define UART_CONTROL_REG         (UART_BASE_ADDRESS + 0x4)
++
++#define TX_BUSY_FLAG_BIT         (1<<1)
++#define SEND_TX_BIT              (1<<4)
++
++void outbyte (char value){  
++    while (((*(volatile unsigned int*)(UART_STATUS_REG)) & TX_BUSY_FLAG_BIT) == TX_BUSY_FLAG_BIT);
++	(*(volatile unsigned int *)(UART_DATA_TX_REG) = value);
++    (*(volatile unsigned int *)(UART_CONTROL_REG) = SEND_TX_BIT); 
++}
++
++
+ static uintptr_t syscall(uintptr_t which, uint64_t arg0, uint64_t arg1, uint64_t arg2)
+-{
++{      
+   volatile uint64_t magic_mem[8] __attribute__((aligned(64)));
+-  magic_mem[0] = which;
+-  magic_mem[1] = arg0;
+-  magic_mem[2] = arg1;
+-  magic_mem[3] = arg2;
+-  __sync_synchronize();
+-
+-  tohost = (uintptr_t)magic_mem;
+-  while (fromhost == 0)
+-    ;
+-  fromhost = 0;
+ 
+-  __sync_synchronize();
+-  return magic_mem[0];
++  if (which==SYS_write){
++        int i = 0;
++        int len = (int) arg2;
++        char *s = (char *) arg1;
++        for (i=0; i<len; i++) 
++            outbyte(s[i]);      
++  }           
++  return (uintptr_t) arg0;
+ }
+ 
+ #define NUM_COUNTERS 2
+diff -Naur riscv-tests/benchmarks/Makefile riscv-tests_ngrriscv/benchmarks/Makefile
+--- riscv-tests/benchmarks/Makefile	2018-10-28 12:47:05.223000000 +0000
++++ riscv-tests_ngrriscv/benchmarks/Makefile	2018-10-28 12:45:07.854000000 +0000
+@@ -17,7 +17,8 @@
+ # Sources
+ #--------------------------------------------------------------------
+ 
+-bmarks = \
++bmarks = dhrystone
++bmarks_all = \
+ 	median \
+ 	qsort \
+ 	rsort \

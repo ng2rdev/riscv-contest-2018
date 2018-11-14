@@ -1,0 +1,200 @@
+diff -Naur riscv-compliance/riscv-target/ngrriscvsim/compliance_io.h riscv-compliance_ngrriscv/riscv-target/ngrriscvsim/compliance_io.h
+--- riscv-compliance/riscv-target/ngrriscvsim/compliance_io.h	1970-01-01 01:00:00.000000000 +0100
++++ riscv-compliance_ngrriscv/riscv-target/ngrriscvsim/compliance_io.h	2018-10-27 16:58:28.771500000 +0100
+@@ -0,0 +1,43 @@
++// RISC-V Compliance IO Test Header File
++
++/*
++ * Copyright (c) 2005-2018 Imperas Software Ltd., www.imperas.com
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *   http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
++ * either express or implied.
++ *
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ *
++ */
++
++#ifndef _COMPLIANCE_IO_H
++#define _COMPLIANCE_IO_H
++    
++//-----------------------------------------------------------------------
++// RV IO Macros
++//-----------------------------------------------------------------------
++
++#define RVTEST_IO_INIT
++#define RVTEST_IO_PUTC(_R)
++#define RVTEST_IO_WRITE_STR(_STR)
++#define RVTEST_IO_ASSERT_GPR_EQ(_R, _I)
++
++#define RVTEST_IO_CHECK()                                               \
++    li zero, -1;                                                        \
++
++
++// Assertion violation: file file.c, line 1234: (expr)
++// _R   = GPR
++// _I   = Immediate
++// _STR = Const String
++    
++#endif // _COMPLIANCE_IO_H
+diff -Naur riscv-compliance/riscv-target/ngrriscvsim/compliance_test.h riscv-compliance_ngrriscv/riscv-target/ngrriscvsim/compliance_test.h
+--- riscv-compliance/riscv-target/ngrriscvsim/compliance_test.h	1970-01-01 01:00:00.000000000 +0100
++++ riscv-compliance_ngrriscv/riscv-target/ngrriscvsim/compliance_test.h	2018-10-27 16:38:04.553500000 +0100
+@@ -0,0 +1,91 @@
++// RISC-V Compliance Test Header File
++// Copyright (c) 2017, Codasip Ltd. All Rights Reserved.
++// See LICENSE for license details.
++//
++// Description: Common header file for RV32I tests
++
++#ifndef _COMPLIANCE_TEST_H
++#define _COMPLIANCE_TEST_H
++
++#include "riscv_test.h"
++
++//-----------------------------------------------------------------------
++// RV Compliance Macros
++//-----------------------------------------------------------------------
++
++#define RV_COMPLIANCE_HALT               \
++    jal ngrriscv_dumpsignature;          \
++    RVTEST_PASS                          \
++
++#define RV_COMPLIANCE_RV32M              \
++        RVTEST_RV32M                     \
++
++#define RV_COMPLIANCE_CODE_BEGIN         \
++        RVTEST_CODE_BEGIN                \
++
++#define RV_COMPLIANCE_CODE_END           \
++	.text                               ;\
++	.align	4                           ;\
++	.globl	outbyte                     ;\
++outbyte:                                ;\
++	li	    a4,-2147434496              ;\
++.L2:                                    ;\
++	lw	    a5,4(a4)                    ;\
++	andi	a5,a5,2                     ;\
++	bnez	a5,.L2                      ;\
++	sw	    a0,0(a4)                    ;\
++	li	    a5,16                       ;\
++	sw	    a5,4(a4)                    ;\
++	ret                                 ;\
++                                        ;\
++    .align	4                           ;\
++	.globl	ngrriscv_dumpsignature      ;\
++ngrriscv_dumpsignature:                 ;\
++	addi	sp,sp,-32                   ;\
++	sw	    s0,24(sp)                   ;\
++	lui	    a5,%hi(end_signature)       ;\
++	lui	    s0,%hi(begin_signature)     ;\
++	sw	    ra,28(sp)                   ;\
++	sw	    s1,20(sp)                   ;\
++	sw	    s2,16(sp)                   ;\
++	sw	    s3,12(sp)                   ;\
++	addi	a4,s0,%lo(begin_signature)  ;\
++	addi	a5,a5,%lo(end_signature)    ;\
++	bgtu	a4,a5,.L36                  ;\
++	lui	    s3,%hi(end_signature+1)     ;\
++	addi	s0,s0,%lo(begin_signature)  ;\
++	addi	s3,s3,%lo(end_signature+1)  ;\
++	li	    s2,9                        ;\
++.L42:                                   ;\
++	addi	s0,s0,1                     ;\
++	lbu	    a5,-1(s0)                   ;\
++	srli	a4,a5,4                     ;\
++	addi	a0,a4,55                    ;\
++	andi	a5,a5,15                    ;\
++	bgtu	a4,s2,.L39                  ;\
++	addi	a0,a4,48                    ;\
++.L39:                                   ;\
++	addi	s1,a5,55                    ;\
++	bgtu	a5,s2,.L41                  ;\
++	addi	s1,a5,48                    ;\
++.L41:                                   ;\
++	call	outbyte                     ;\
++	mv	    a0,s1                       ;\
++	call	outbyte                     ;\
++	bne	    s0,s3,.L42                  ;\
++.L36:                                   ;\
++	lw	    ra,28(sp)                   ;\
++	lw	    s0,24(sp)                   ;\
++	lw	    s1,20(sp)                   ;\
++	lw	    s2,16(sp)                   ;\
++	lw	    s3,12(sp)                   ;\
++	addi	sp,sp,32                    ;\
++	jr	    ra                          ;\
++        
++#define RV_COMPLIANCE_DATA_BEGIN        \
++        RVTEST_DATA_BEGIN               \
++        
++#define RV_COMPLIANCE_DATA_END          \
++        RVTEST_DATA_END                 \
++
++#endif
+diff -Naur riscv-compliance/riscv-target/ngrriscvsim/device/rv32i/Makefile.include riscv-compliance_ngrriscv/riscv-target/ngrriscvsim/device/rv32i/Makefile.include
+--- riscv-compliance/riscv-target/ngrriscvsim/device/rv32i/Makefile.include	1970-01-01 01:00:00.000000000 +0100
++++ riscv-compliance_ngrriscv/riscv-target/ngrriscvsim/device/rv32i/Makefile.include	2018-10-27 17:25:44.086500000 +0100
+@@ -0,0 +1,24 @@
++#TARGET_SIM ?= ngrriscsim
++#ifeq ($(shell command -v $(TARGET_SIM) 2> /dev/null),)
++#    $(error Target simulator executable '$(TARGET_SIM)` not found)
++#endif
++#
++#RUN_TARGET=\
++#    $(TARGET_SIM) --isa=rv32i \
++#        +signature=$(work_dir_isa)/$(*)_signature.output \
++#        $(work_dir_isa)/$< 2> $(work_dir_isa)/$@
++
++RISCV_PREFIX   ?= riscv32-unknown-elf-
++RISCV_GCC      ?= $(RISCV_PREFIX)gcc
++RISCV_OBJDUMP  ?= $(RISCV_PREFIX)objdump
++RISCV_GCC_OPTS ?= -static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles
++
++COMPILE_TARGET=\
++	$$(RISCV_GCC) $(2) $$(RISCV_GCC_OPTS) \
++		-I$(ROOTDIR)/riscv-test-env/ \
++		-I$(ROOTDIR)/riscv-test-env/p/ \
++		-I$(ROOTDIR)/riscv-target/$(RISCV_TARGET)/ \
++		-T$(ROOTDIR)/riscv-test-env/p/link.ld $$< \
++		-o $(work_dir_isa)/$$@; \
++
++#	$$(RISCV_OBJDUMP) -D $(work_dir_isa)/$$@ > $(work_dir_isa)/$$@.objdump
+\ No newline at end of file
+diff -Naur riscv-compliance/riscv-target/ngrriscvsim/device/rv32im/Makefile.include riscv-compliance_ngrriscv/riscv-target/ngrriscvsim/device/rv32im/Makefile.include
+--- riscv-compliance/riscv-target/ngrriscvsim/device/rv32im/Makefile.include	1970-01-01 01:00:00.000000000 +0100
++++ riscv-compliance_ngrriscv/riscv-target/ngrriscvsim/device/rv32im/Makefile.include	2018-10-27 17:25:41.804000000 +0100
+@@ -0,0 +1,24 @@
++#TARGET_SIM ?= ngrriscsim
++#ifeq ($(shell command -v $(TARGET_SIM) 2> /dev/null),)
++#    $(error Target simulator executable '$(TARGET_SIM)` not found)
++#endif
++#
++#RUN_TARGET=\
++#    $(TARGET_SIM) --isa=rv32i \
++#        +signature=$(work_dir_isa)/$(*)_signature.output \
++#        $(work_dir_isa)/$< 2> $(work_dir_isa)/$@
++
++RISCV_PREFIX   ?= riscv32-unknown-elf-
++RISCV_GCC      ?= $(RISCV_PREFIX)gcc
++RISCV_OBJDUMP  ?= $(RISCV_PREFIX)objdump
++RISCV_GCC_OPTS ?= -static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles
++
++COMPILE_TARGET=\
++	$$(RISCV_GCC) $(2) $$(RISCV_GCC_OPTS) \
++		-I$(ROOTDIR)/riscv-test-env/ \
++		-I$(ROOTDIR)/riscv-test-env/p/ \
++		-I$(ROOTDIR)/riscv-target/$(RISCV_TARGET)/ \
++		-T$(ROOTDIR)/riscv-test-env/p/link.ld $$< \
++		-o $(work_dir_isa)/$$@;
++
++#   $$(RISCV_OBJDUMP) -D $(work_dir_isa)/$$@ > $(work_dir_isa)/$$@.objdump
+\ No newline at end of file

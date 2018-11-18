@@ -12,7 +12,7 @@
  *      Changed IO memory mapping;
  *      Changed/added some debug capability; 
  *  
- *  Compile:
+ *  Compile with:
  *      gcc -O2 ngrriscvsim.c -o ngrriscvsim.exe
  *   or to add some extra debug features:
  *      gcc -O2 -DDEBUG ngrriscvsim.c -o ngrriscvsim.exe
@@ -118,6 +118,8 @@ static int32_t mem_fetch(state *s, uint32_t address){
     uint32_t value=0;
     uint32_t *ptr;
 
+    if (address == EXIT_TRAP) exit(0);
+    
     ptr = (uint32_t *)(s->mem + (address % MEM_SIZE));
     value = *ptr;
 
@@ -126,9 +128,9 @@ static int32_t mem_fetch(state *s, uint32_t address){
 
 static int32_t test_mem(state *s, int32_t size, uint32_t address, int32_t op){
 
-    int32_t addressOK=1;
+    int32_t addressOK=1;	
 
-    if (test_mask(s->csr_mstatus, MSTATUS_MIE)){
+    if (!(test_mask(s->csr_mstatus, MSTATUS_MIE))){
         switch(size){
             case 4 : if (address & 3) addressOK = 0; break;
             case 2 : if (address & 1) addressOK = 0; break;
@@ -355,71 +357,71 @@ void cycle(state *s){
     ptr_s       = r[rs1] + (int32_t)imm_s;
 
     switch(opcode){
-        case 0x37: r[rd] = imm_u; break;                                                            /* LUI      */
-        case 0x17: r[rd] = s->pc + imm_u; break;                                                    /* AUIPC    */
-        case 0x6f: r[rd] = s->pc_next; s->pc_next = s->pc + imm_uj; break;                          /* JAL      note: need to test funct3? */
-        case 0x67: tmp=r[rs1]; r[rd] = s->pc_next; s->pc_next = (tmp + imm_i) & 0xfffffffe; ; break;/* JALR     */
-        case 0x63:
-            switch(funct3){
-                case 0x0: if (r[rs1] == r[rs2]) { s->pc_next = s->pc + imm_sb; } break;             /* BEQ */
-                case 0x1: if (r[rs1] != r[rs2]) { s->pc_next = s->pc + imm_sb; } break;             /* BNE */
-                case 0x4: if (r[rs1] <  r[rs2]) { s->pc_next = s->pc + imm_sb; } break;             /* BLT */
-                case 0x5: if (r[rs1] >= r[rs2]) { s->pc_next = s->pc + imm_sb; } break;             /* BGE */
-                case 0x6: if (u[rs1] <  u[rs2]) { s->pc_next = s->pc + imm_sb; } break;             /* BLTU */
-                case 0x7: if (u[rs1] >= u[rs2]) { s->pc_next = s->pc + imm_sb; } break;             /* BGEU */
-                default: goto fail;
-            }
-            break;
-        case 0x03:
-            switch(funct3){
-                case 0x0:                                      r[rd] = (int8_t)mem_read(s,1,ptr_l); break;   /* LB */
-                case 0x1: if (test_mem(s,2,ptr_l,MEM_OP_READ)) r[rd] = (int16_t)mem_read(s,2,ptr_l); break;  /* LH */
-                case 0x2: if (test_mem(s,4,ptr_l,MEM_OP_READ)) r[rd] = mem_read(s,4,ptr_l); break;           /* LW */
-                case 0x4:                                      r[rd] = (uint8_t)mem_read(s,1,ptr_l); break;  /* LBU */
-                case 0x5: if (test_mem(s,2,ptr_l,MEM_OP_READ)) r[rd] = (uint16_t)mem_read(s,2,ptr_l); break; /* LHU */
-                default: goto fail;
-            }
-            break;
-        case 0x23:
-            switch(funct3){
-                case 0x0:                                       mem_write(s,1,ptr_s,r[rs2]); break;                                     /* SB */
-                case 0x1: if (test_mem(s,2,ptr_s,MEM_OP_WRITE)) mem_write(s,2,ptr_s,r[rs2]); break;                                     /* SH */
-                case 0x2: if (test_mem(s,4,ptr_s,MEM_OP_WRITE)) mem_write(s,4,ptr_s,r[rs2]); break;                                     /* SW */
+        case 0x37: r[rd] = imm_u; break;                                                                            /* LUI */
+        case 0x17: r[rd] = s->pc + imm_u; break;                                                                    /* AUIPC */
+        case 0x6f: r[rd] = s->pc_next; s->pc_next = s->pc + imm_uj; break;                                          /* JAL note: need to test funct3? */
+        case 0x67: tmp=r[rs1]; r[rd] = s->pc_next; s->pc_next = (tmp + imm_i) & 0xfffffffe; ; break;                /* JALR */
+        case 0x63:              
+            switch(funct3){             
+                case 0x0: if (r[rs1] == r[rs2]) { s->pc_next = s->pc + imm_sb; } break;                             /* BEQ */
+                case 0x1: if (r[rs1] != r[rs2]) { s->pc_next = s->pc + imm_sb; } break;                             /* BNE */
+                case 0x4: if (r[rs1] <  r[rs2]) { s->pc_next = s->pc + imm_sb; } break;                             /* BLT */
+                case 0x5: if (r[rs1] >= r[rs2]) { s->pc_next = s->pc + imm_sb; } break;                             /* BGE */
+                case 0x6: if (u[rs1] <  u[rs2]) { s->pc_next = s->pc + imm_sb; } break;                             /* BLTU */
+                case 0x7: if (u[rs1] >= u[rs2]) { s->pc_next = s->pc + imm_sb; } break;                             /* BGEU */
+                default: goto fail; 
+            }   
+            break;  
+        case 0x03:  
+            switch(funct3){ 
+                case 0x0:                                      r[rd] = (int8_t)mem_read(s,1,ptr_l); break;          /* LB */
+                case 0x1: if (test_mem(s,2,ptr_l,MEM_OP_READ)) r[rd] = (int16_t)mem_read(s,2,ptr_l); break;         /* LH */
+                case 0x2: if (test_mem(s,4,ptr_l,MEM_OP_READ)) r[rd] = mem_read(s,4,ptr_l); break;                  /* LW */
+                case 0x4:                                      r[rd] = (uint8_t)mem_read(s,1,ptr_l); break;         /* LBU */
+                case 0x5: if (test_mem(s,2,ptr_l,MEM_OP_READ)) r[rd] = (uint16_t)mem_read(s,2,ptr_l); break;        /* LHU */
+                default: goto fail; 
+            }   
+            break;  
+        case 0x23:  
+            switch(funct3){ 
+                case 0x0:                                       mem_write(s,1,ptr_s,r[rs2]); break;                 /* SB */
+                case 0x1: if (test_mem(s,2,ptr_s,MEM_OP_WRITE)) mem_write(s,2,ptr_s,r[rs2]); break;                 /* SH */
+                case 0x2: if (test_mem(s,4,ptr_s,MEM_OP_WRITE)) mem_write(s,4,ptr_s,r[rs2]); break;                 /* SW */
                 default: goto fail;
             }
             break;
         case 0x13:
             switch(funct3){
-                case 0x0: r[rd] = r[rs1] + (int32_t)imm_i; break;                                   /* ADDI */
-                case 0x2: r[rd] = r[rs1] < (int32_t)imm_i; break;                                   /* SLTI */
-                case 0x3: r[rd] = u[rs1] < (uint32_t)imm_i; break;                                  /* SLTIU */
-                case 0x4: r[rd] = r[rs1] ^ (int32_t)imm_i; break;                                   /* XORI */
-                case 0x6: r[rd] = r[rs1] | (int32_t)imm_i; break;                                   /* ORI */
-                case 0x7: r[rd] = r[rs1] & (int32_t)imm_i; break;                                   /* ANDI */
-                case 0x1: r[rd] = u[rs1] << (rs2 & 0x3f); break;                                    /* SLLI note: need to test funct7?*/
-                case 0x5:
-                    switch(funct7){
-                        case 0x0: r[rd] = u[rs1] >> (rs2 & 0x3f); break;                            /* SRLI */
-                        case 0x20: r[rd] = r[rs1] >> (rs2 & 0x3f); break;                           /* SRAI */
-                        default: goto fail;
-                    }
-                    break;
-                default: goto fail;
-            }
-            break;
-        case 0x33:
-            switch(funct7){
-                case 0x0:
-                    switch(funct3){
-                        case 0x0: r[rd] = r[rs1] + r[rs2]; break;                                   /* ADD */
-                        case 0x1: r[rd] = r[rs1] << r[rs2]; break;                                  /* SLL */
-                        case 0x2: r[rd] = r[rs1] < r[rs2]; break;                                   /* SLT */
-                        case 0x3: r[rd] = u[rs1] < u[rs2]; break;                                   /* SLTU */
-                        case 0x4: r[rd] = r[rs1] ^ r[rs2]; break;                                   /* XOR */
-                        case 0x5: r[rd] = u[rs1] >> u[rs2]; break;                                  /* SRL */
-                        case 0x6: r[rd] = r[rs1] | r[rs2]; break;                                   /* OR */
-                        case 0x7: r[rd] = r[rs1] & r[rs2]; break;                                   /* AND */
-                        default: goto fail;
+                case 0x0: r[rd] = r[rs1] + (int32_t)imm_i; break;                                                   /* ADDI */
+                case 0x2: r[rd] = r[rs1] < (int32_t)imm_i; break;                                                   /* SLTI */
+                case 0x3: r[rd] = u[rs1] < (uint32_t)imm_i; break;                                                  /* SLTIU */
+                case 0x4: r[rd] = r[rs1] ^ (int32_t)imm_i; break;                                                   /* XORI */
+                case 0x6: r[rd] = r[rs1] | (int32_t)imm_i; break;                                                   /* ORI */
+                case 0x7: r[rd] = r[rs1] & (int32_t)imm_i; break;                                                   /* ANDI */
+                case 0x1: r[rd] = u[rs1] << (rs2 & 0x3f); break;                                                    /* SLLI note: need to test funct7?*/
+                case 0x5:               
+                    switch(funct7){             
+                        case 0x0: r[rd] = u[rs1] >> (rs2 & 0x3f); break;                                            /* SRLI */
+                        case 0x20: r[rd] = r[rs1] >> (rs2 & 0x3f); break;                                           /* SRAI */
+                        default: goto fail; 
+                    }   
+                    break;  
+                default: goto fail; 
+            }   
+            break;  
+        case 0x33:  
+            switch(funct7){ 
+                case 0x0:   
+                    switch(funct3){ 
+                        case 0x0: r[rd] = r[rs1] + r[rs2]; break;                                                   /* ADD */
+                        case 0x1: r[rd] = r[rs1] << r[rs2]; break;                                                  /* SLL */
+                        case 0x2: r[rd] = r[rs1] < r[rs2]; break;                                                   /* SLT */
+                        case 0x3: r[rd] = u[rs1] < u[rs2]; break;                                                   /* SLTU */
+                        case 0x4: r[rd] = r[rs1] ^ r[rs2]; break;                                                   /* XOR */
+                        case 0x5: r[rd] = u[rs1] >> u[rs2]; break;                                                  /* SRL */
+                        case 0x6: r[rd] = r[rs1] | r[rs2]; break;                                                   /* OR */
+                        case 0x7: r[rd] = r[rs1] & r[rs2]; break;                                                   /* AND */
+                        default: goto fail;         
                     }
                     break;
                 case 0x1:
@@ -437,8 +439,8 @@ void cycle(state *s){
                     break;
                 case 0x20:
                     switch(funct3){
-                        case 0x0: r[rd] = r[rs1] - r[rs2]; break;                                   /* SUB */
-                        case 0x5: r[rd] = r[rs1] >> r[rs2]; break;                                  /* SRA */
+                        case 0x0: r[rd] = r[rs1] - r[rs2]; break;                                                   /* SUB */
+                        case 0x5: r[rd] = r[rs1] >> r[rs2]; break;                                                  /* SRA */
                         default: goto fail;
                     }
                     break;
@@ -451,37 +453,37 @@ void cycle(state *s){
                     switch(funct7){
                         case 0x0:
                             switch(funct5){
-                                case 0x0: exec_ecall(s); break;                                     /* ECALL */
-                                case 0x1: exec_ebreak(s); break;                                    /* EBREAK */
-                                /* case 0x2: exec_uret(s); break; */                                /* URET */
-                                default: goto fail;
-                            }
-                            break;
-                        case 0x8:
-                            switch(funct5){
-                                /* case 0x2: exec_sret(s); break; */                                /* SRET */
-                                case 0x5: exit(0); break;                                           /* WFI      note: like a NOP*/
-                                default: goto fail;
-                            }
-                            break;
-                        case 0x9: break;                                                            /* SFENCE.VMA note: like a NOP*/
-                        case 0x18: exec_mret(s); break;                                             /* MRET */
+                                case 0x0: exec_ecall(s); break;                                                     /* ECALL */
+                                case 0x1: exec_ebreak(s); break;                                                    /* EBREAK */
+                                /* case 0x2: exec_uret(s); break; */                                                /* URET */
+                                default: goto fail;             
+                            }               
+                            break;              
+                        case 0x8:               
+                            switch(funct5){             
+                                /* case 0x2: exec_sret(s); break; */                                                /* SRET */
+                                case 0x5: exit(0); break;                                                           /* WFI      note: like a NOP*/
+                                default: goto fail;             
+                            }               
+                            break;              
+                        case 0x9: break;                                                                            /* SFENCE.VMA note: like a NOP*/
+                        case 0x18: exec_mret(s); break;                                                             /* MRET */
                         default: goto fail;
                     }
                     break;
-                case 0x1: tmp = csr_op(s, CSR_OP_WRITE , rs1, r[rs1], csr); if (rd!=0)  r[rd]=tmp; break;   /* CSRRW  */
-                case 0x2: tmp = csr_op(s, CSR_OP_SET   , rs1, r[rs1], csr); r[rd]=tmp;             break;   /* CSRRS  */
-                case 0x3: tmp = csr_op(s, CSR_OP_CLEAR , rs1, r[rs1], csr); r[rd]=tmp;             break;   /* CSRRC */
-                case 0x5: tmp = csr_op(s, CSR_OP_WRITEI, rs1, rs1,    csr); if (rd!=0)  r[rd]=tmp; break;   /* CSRRWI */
-                case 0x6: tmp = csr_op(s, CSR_OP_SETI  , rs1, rs1,    csr); r[rd]=tmp;             break;   /* CSRRSI   */
-                case 0x7: tmp = csr_op(s, CSR_OP_CLEARI, rs1, rs1,    csr); r[rd]=tmp;             break;   /* CSRRCI  */
+                case 0x1: tmp = csr_op(s, CSR_OP_WRITE , rs1, r[rs1], csr); if (rd!=0)  r[rd]=tmp; break;           /* CSRRW  */
+                case 0x2: tmp = csr_op(s, CSR_OP_SET   , rs1, r[rs1], csr); r[rd]=tmp;             break;           /* CSRRS  */
+                case 0x3: tmp = csr_op(s, CSR_OP_CLEAR , rs1, r[rs1], csr); r[rd]=tmp;             break;           /* CSRRC */
+                case 0x5: tmp = csr_op(s, CSR_OP_WRITEI, rs1, rs1,    csr); if (rd!=0)  r[rd]=tmp; break;           /* CSRRWI */
+                case 0x6: tmp = csr_op(s, CSR_OP_SETI  , rs1, rs1,    csr); r[rd]=tmp;             break;           /* CSRRSI   */
+                case 0x7: tmp = csr_op(s, CSR_OP_CLEARI, rs1, rs1,    csr); r[rd]=tmp;             break;           /* CSRRCI  */
                 default: goto fail;
             }
             break;
         case 0x0F:
             switch(funct3){
-                case 0x0: break;                                                                    /* FENCE    note: like a NOP*/
-                case 0x1: break;                                                                    /* FENCE.I  note: like a NOP*/
+                case 0x0: break;                                                                                    /* FENCE    note: like a NOP*/
+                case 0x1: break;                                                                                    /* FENCE.I  note: like a NOP*/
                 default: goto fail;
             }
             break;

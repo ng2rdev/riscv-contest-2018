@@ -1,17 +1,1373 @@
-diff -Naur riscv-tests/benchmarks/common/syscalls.c riscv-tests_ngrriscv/benchmarks/common/syscalls.c
---- riscv-tests/benchmarks/common/syscalls.c	2018-10-28 12:47:05.229500000 +0000
-+++ riscv-tests_ngrriscv/benchmarks/common/syscalls.c	2018-10-28 12:45:55.988000000 +0000
-@@ -15,22 +15,33 @@
- extern volatile uint64_t tohost;
- extern volatile uint64_t fromhost;
- 
+diff -Naur riscv-tests/Makefile riscv-tests_ngrriscv/Makefile
+--- riscv-tests/Makefile	1970-01-01 01:00:00.000000000 +0100
++++ riscv-tests_ngrriscv/Makefile	2018-11-20 19:33:03.890000000 +0000
+@@ -0,0 +1,106 @@
++#RISCV_BIN ?= ${ZEPHYR_SDK_INSTALL_DIR}/sysroots/x86_64-pokysdk-linux/usr/bin/riscv32-zephyr-elf/riscv32-zephyr-elf-
++RISCV_BIN=${RISCV_PREFIX}
++RISCV_CC=${RISCV_BIN}gcc
++RISCV_OBJCOPY=${RISCV_BIN}objcopy
++RISCV_OBJDUMP=${RISCV_BIN}objdump
++
++PROJ_NAME=dhrystone
++DEBUG=no
++MULDIV?=yes
++COMPRESSED?=no
++
++
++
++MARCH := rv32i
++ifeq ($(MULDIV),yes)
++	MARCH := $(MARCH)m
++endif
++ifeq ($(COMPRESSED),yes)
++	MARCH := $(MARCH)ac
++endif
++
++CFLAGS += -march=$(MARCH)
++CFLAGS += -fno-inline -fno-common
++CFLAGS += -D__riscv -DHZ=48000000ll
++
++
++SRCS = 	src/dhrystone_main.c src/dhrystone.c  src/stdlib.c src/start.S
++LDFLAGS += -lc
++LDSCRIPT = mapping.ld
++
++
++#CFLAGS += -I${ZEPHYR_SDK_INSTALL_DIR}/sysroots/riscv32-zephyr-elf/usr/include
++#LDFLAGS += -L/home/spinalvm/hdl/tools/zephyr-sdk/sysroots/riscv32-zephyr-elf/usr/lib/riscv32-zephyr-elf/6.1.0
++#LDFLAGS += -L/home/spinalvm/hdl/tools/zephyr-sdk/sysroots/riscv32-zephyr-elf/usr/lib
++
++
++ifeq ($(DEBUG),yes)
++	CFLAGS += -g3 -O0 
++endif
++
++ifeq ($(DEBUG),no)
++	CFLAGS += -O3
++endif
++
++
++LDFLAGS +=  -nostdlib -lgcc -nostartfiles -ffreestanding -Wl,-Bstatic,-T,$(LDSCRIPT),-Map,$(OBJDIR)/$(PROJ_NAME).map,--print-memory-usage
++
++OBJDIR = build
++OBJS := $(SRCS)
++OBJS := $(OBJS:.c=.o)
++OBJS := $(OBJS:.cpp=.o)
++OBJS := $(OBJS:.S=.o)
++OBJS := $(OBJS:..=miaou)
++OBJS := $(addprefix $(OBJDIR)/,$(OBJS))
++
++all: $(OBJDIR)/$(PROJ_NAME).elf $(OBJDIR)/$(PROJ_NAME).hex $(OBJDIR)/$(PROJ_NAME).asm $(OBJDIR)/$(PROJ_NAME).bin $(OBJDIR)/$(PROJ_NAME).symbs $(OBJDIR)/$(PROJ_NAME).dump $(OBJDIR)/$(PROJ_NAME).srec $(OBJDIR)/$(PROJ_NAME).verilog
++
++$(OBJDIR)/%.elf: $(OBJS) | $(OBJDIR)
++	$(RISCV_CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS)
++
++%.symbs: %.elf
++	$(RISCV_OBJDUMP) -t  $^ > $@
++
++%.dump: %.elf
++	$(RISCV_OBJDUMP) --disassembler-options=no-aliases,numeric -D $^ > $@
++
++%.srec: %.elf
++	$(RISCV_OBJCOPY) -O srec $^ $@
++
++%.hex: %.elf
++	$(RISCV_OBJCOPY) -O ihex $^ $@
++
++%.bin: %.elf
++	$(RISCV_OBJCOPY) -O binary $^ $@
++
++%.verilog: %.elf
++	$(RISCV_OBJCOPY) -O verilog $^ $@
++
++%.asm: %.elf
++	$(RISCV_OBJDUMP) -S -d $^ > $@
++
++$(OBJDIR)/%.o: %.c
++	mkdir -p $(dir $@)
++	$(RISCV_CC) -c $(CFLAGS)  $(INC) -o $@ $^
++
++$(OBJDIR)/%.o: %.cpp
++	mkdir -p $(dir $@)
++	$(RISCV_CC) -c $(CFLAGS)  $(INC) -o $@ $^	
++
++$(OBJDIR)/%.o: %.S
++	mkdir -p $(dir $@)
++	$(RISCV_CC) -c $(CFLAGS) -o $@ $^ -D__ASSEMBLY__=1
++
++$(OBJDIR):
++	mkdir -p $@
++
++clean:
++	rm -f $(OBJDIR)/$(PROJ_NAME).elf
++	rm -f $(OBJDIR)/$(PROJ_NAME).hex
++	rm -f $(OBJDIR)/$(PROJ_NAME).map
++	rm -f $(OBJDIR)/$(PROJ_NAME).v
++	rm -f $(OBJDIR)/$(PROJ_NAME).bin
++	rm -f $(OBJDIR)/$(PROJ_NAME).asm
++	find $(OBJDIR) -type f -name '*.o' -print0 | xargs -0 -r rm
++
++.SECONDARY: $(OBJS)
+\ No newline at end of file
+diff -Naur riscv-tests/mapping.ld riscv-tests_ngrriscv/mapping.ld
+--- riscv-tests/mapping.ld	1970-01-01 01:00:00.000000000 +0100
++++ riscv-tests_ngrriscv/mapping.ld	2018-11-20 18:47:01.678000000 +0000
+@@ -0,0 +1,109 @@
++OUTPUT_ARCH( "riscv" )
++
++ENTRY( _start )
++
++MEMORY
++{
++  flash (rxai!w) : ORIGIN = 0x0000, LENGTH = 16K
++  ram (wxa!ri)   : ORIGIN = 0x4000, LENGTH = 16K
++}
++
++
++SECTIONS
++{
++  __stack_size = DEFINED(__stack_size) ? __stack_size : 2K;
++
++  .init           :
++  {
++    KEEP (*(SORT_NONE(.init)))
++  } >flash 
++
++  .text           :
++  {
++    *(.text.unlikely .text.unlikely.*)
++    *(.text.startup .text.startup.*)
++    *(.text .text.*)
++    *(.gnu.linkonce.t.*)
++    *(.note.gnu.build-id)
++  } >flash 
++
++  . = ALIGN(4);
++
++  .ctors          :
++  {
++    /* gcc uses crtbegin.o to find the start of
++       the constructors, so we make sure it is
++       first.  Because this is a wildcard, it
++       doesn't matter if the user does not
++       actually link against crtbegin.o; the
++       linker won't look for a file to match a
++       wildcard.  The wildcard also means that it
++       doesn't matter which directory crtbegin.o
++       is in.  */
++    KEEP (*crtbegin.o(.ctors))
++    KEEP (*crtbegin?.o(.ctors))
++    /* We don't want to include the .ctor section from
++       the crtend.o file until after the sorted ctors.
++       The .ctor section from the crtend file contains the
++       end of ctors marker and it must be last */
++    KEEP (*(EXCLUDE_FILE (*crtend.o *crtend?.o ) .ctors))
++    KEEP (*(SORT(.ctors.*)))
++    KEEP (*(.ctors))
++  } >flash
++
++  .dtors          :
++  {
++    KEEP (*crtbegin.o(.dtors))
++    KEEP (*crtbegin?.o(.dtors))
++    KEEP (*(EXCLUDE_FILE (*crtend.o *crtend?.o ) .dtors))
++    KEEP (*(SORT(.dtors.*)))
++    KEEP (*(.dtors))
++  } >flash
++
++
++  .data          :
++  {
++    *(.rdata)
++    *(.rodata .rodata.*)
++    *(.gnu.linkonce.r.*)
++    *(.data .data.*)
++    *(.gnu.linkonce.d.*)
++    . = ALIGN(8);
++    PROVIDE( __global_pointer$ = . + 0x800 );
++    *(.sdata .sdata.*)
++    *(.gnu.linkonce.s.*)
++    . = ALIGN(8);
++    *(.srodata.cst16)
++    *(.srodata.cst8)
++    *(.srodata.cst4)
++    *(.srodata.cst2)
++    *(.srodata .srodata.*)
++  } >ram
++
++  . = ALIGN(4);
++  PROVIDE( _edata = . );
++  PROVIDE( edata = . );
++
++  PROVIDE( _fbss = . );
++  PROVIDE( __bss_start = . );
++  .bss            :
++  {
++    *(.sbss*)
++    *(.gnu.linkonce.sb.*)
++    *(.bss .bss.*)
++    *(.gnu.linkonce.b.*)
++    *(COMMON)
++    . = ALIGN(4);
++  } >ram
++
++  . = ALIGN(8);
++  PROVIDE( _end = . );
++  PROVIDE( end = . );
++
++  .stack :
++  {
++    PROVIDE( _heap_end = . );
++    . = __stack_size;
++    PROVIDE( _sp = . );
++  } >ram
++}
+\ No newline at end of file
+diff -Naur riscv-tests/src/dhrystone.c riscv-tests_ngrriscv/src/dhrystone.c
+--- riscv-tests/src/dhrystone.c	1970-01-01 01:00:00.000000000 +0100
++++ riscv-tests_ngrriscv/src/dhrystone.c	2018-11-04 12:41:07.572000000 +0000
+@@ -0,0 +1,181 @@
++// See LICENSE for license details.
++
++#pragma GCC optimize ("no-inline")
++
++#include "dhrystone.h"
++
++#ifndef REG
++#define REG
++        /* REG becomes defined as empty */
++        /* i.e. no register variables   */
++#else
++#undef REG
++#define REG register
++#endif
++
++extern  int     Int_Glob;
++extern  char    Ch_1_Glob;
++
++
++Proc_6 (Enum_Val_Par, Enum_Ref_Par)
++/*********************************/
++    /* executed once */
++    /* Enum_Val_Par == Ident_3, Enum_Ref_Par becomes Ident_2 */
++
++Enumeration  Enum_Val_Par;
++Enumeration *Enum_Ref_Par;
++{
++  *Enum_Ref_Par = Enum_Val_Par;
++  if (! Func_3 (Enum_Val_Par))
++    /* then, not executed */
++    *Enum_Ref_Par = Ident_4;
++  switch (Enum_Val_Par)
++  {
++    case Ident_1: 
++      *Enum_Ref_Par = Ident_1;
++      break;
++    case Ident_2: 
++      if (Int_Glob > 100)
++        /* then */
++      *Enum_Ref_Par = Ident_1;
++      else *Enum_Ref_Par = Ident_4;
++      break;
++    case Ident_3: /* executed */
++      *Enum_Ref_Par = Ident_2;
++      break;
++    case Ident_4: break;
++    case Ident_5: 
++      *Enum_Ref_Par = Ident_3;
++      break;
++  } /* switch */
++} /* Proc_6 */
++
++
++Proc_7 (Int_1_Par_Val, Int_2_Par_Val, Int_Par_Ref)
++/**********************************************/
++    /* executed three times                                      */ 
++    /* first call:      Int_1_Par_Val == 2, Int_2_Par_Val == 3,  */
++    /*                  Int_Par_Ref becomes 7                    */
++    /* second call:     Int_1_Par_Val == 10, Int_2_Par_Val == 5, */
++    /*                  Int_Par_Ref becomes 17                   */
++    /* third call:      Int_1_Par_Val == 6, Int_2_Par_Val == 10, */
++    /*                  Int_Par_Ref becomes 18                   */
++One_Fifty       Int_1_Par_Val;
++One_Fifty       Int_2_Par_Val;
++One_Fifty      *Int_Par_Ref;
++{
++  One_Fifty Int_Loc;
++
++  Int_Loc = Int_1_Par_Val + 2;
++  *Int_Par_Ref = Int_2_Par_Val + Int_Loc;
++} /* Proc_7 */
++
++
++Proc_8 (Arr_1_Par_Ref, Arr_2_Par_Ref, Int_1_Par_Val, Int_2_Par_Val)
++/*********************************************************************/
++    /* executed once      */
++    /* Int_Par_Val_1 == 3 */
++    /* Int_Par_Val_2 == 7 */
++Arr_1_Dim       Arr_1_Par_Ref;
++Arr_2_Dim       Arr_2_Par_Ref;
++int             Int_1_Par_Val;
++int             Int_2_Par_Val;
++{
++  REG One_Fifty Int_Index;
++  REG One_Fifty Int_Loc;
++
++  Int_Loc = Int_1_Par_Val + 5;
++  Arr_1_Par_Ref [Int_Loc] = Int_2_Par_Val;
++  Arr_1_Par_Ref [Int_Loc+1] = Arr_1_Par_Ref [Int_Loc];
++  Arr_1_Par_Ref [Int_Loc+30] = Int_Loc;
++  for (Int_Index = Int_Loc; Int_Index <= Int_Loc+1; ++Int_Index)
++    Arr_2_Par_Ref [Int_Loc] [Int_Index] = Int_Loc;
++  Arr_2_Par_Ref [Int_Loc] [Int_Loc-1] += 1;
++  Arr_2_Par_Ref [Int_Loc+20] [Int_Loc] = Arr_1_Par_Ref [Int_Loc];
++  Int_Glob = 5;
++} /* Proc_8 */
++
++
++Enumeration Func_1 (Ch_1_Par_Val, Ch_2_Par_Val)
++/*************************************************/
++    /* executed three times                                         */
++    /* first call:      Ch_1_Par_Val == 'H', Ch_2_Par_Val == 'R'    */
++    /* second call:     Ch_1_Par_Val == 'A', Ch_2_Par_Val == 'C'    */
++    /* third call:      Ch_1_Par_Val == 'B', Ch_2_Par_Val == 'C'    */
++
++Capital_Letter   Ch_1_Par_Val;
++Capital_Letter   Ch_2_Par_Val;
++{
++  Capital_Letter        Ch_1_Loc;
++  Capital_Letter        Ch_2_Loc;
++
++  Ch_1_Loc = Ch_1_Par_Val;
++  Ch_2_Loc = Ch_1_Loc;
++  if (Ch_2_Loc != Ch_2_Par_Val)
++    /* then, executed */
++    return (Ident_1);
++  else  /* not executed */
++  {
++    Ch_1_Glob = Ch_1_Loc;
++    return (Ident_2);
++   }
++} /* Func_1 */
++
++
++Boolean Func_2 (Str_1_Par_Ref, Str_2_Par_Ref)
++/*************************************************/
++    /* executed once */
++    /* Str_1_Par_Ref == "DHRYSTONE PROGRAM, 1'ST STRING" */
++    /* Str_2_Par_Ref == "DHRYSTONE PROGRAM, 2'ND STRING" */
++
++Str_30  Str_1_Par_Ref;
++Str_30  Str_2_Par_Ref;
++{
++  REG One_Thirty        Int_Loc;
++      Capital_Letter    Ch_Loc;
++
++  Int_Loc = 2;
++  while (Int_Loc <= 2) /* loop body executed once */
++    if (Func_1 (Str_1_Par_Ref[Int_Loc],
++                Str_2_Par_Ref[Int_Loc+1]) == Ident_1)
++      /* then, executed */
++    {
++      Ch_Loc = 'A';
++      Int_Loc += 1;
++    } /* if, while */
++  if (Ch_Loc >= 'W' && Ch_Loc < 'Z')
++    /* then, not executed */
++    Int_Loc = 7;
++  if (Ch_Loc == 'R')
++    /* then, not executed */
++    return (true);
++  else /* executed */
++  {
++    if (strcmp (Str_1_Par_Ref, Str_2_Par_Ref) > 0)
++      /* then, not executed */
++    {
++      Int_Loc += 7;
++      Int_Glob = Int_Loc;
++      return (true);
++    }
++    else /* executed */
++      return (false);
++  } /* if Ch_Loc */
++} /* Func_2 */
++
++
++Boolean Func_3 (Enum_Par_Val)
++/***************************/
++    /* executed once        */
++    /* Enum_Par_Val == Ident_3 */
++Enumeration Enum_Par_Val;
++{
++  Enumeration Enum_Loc;
++
++  Enum_Loc = Enum_Par_Val;
++  if (Enum_Loc == Ident_3)
++    /* then, executed */
++    return (true);
++  else /* not executed */
++    return (false);
++} /* Func_3 */
+diff -Naur riscv-tests/src/dhrystone.h riscv-tests_ngrriscv/src/dhrystone.h
+--- riscv-tests/src/dhrystone.h	1970-01-01 01:00:00.000000000 +0100
++++ riscv-tests_ngrriscv/src/dhrystone.h	2018-11-04 14:14:46.497000000 +0000
+@@ -0,0 +1,477 @@
++// See LICENSE for license details.
++
++#ifndef _DHRYSTONE_H
++#define _DHRYSTONE_H
++
++/****************** "DHRYSTONE" Benchmark Program ***************************/
++#define Version "C, Version 2.2"
++/*  File:       dhry_1.c (part 2 of 3)
++ *  Author:     Reinhold P. Weicker
++ *              Siemens Nixdorf, Paderborn/Germany
++ *              weicker@specbench.org
++ *  Date:       May 25, 1988
++ *  Modified:	Steven Pemberton, CWI, Amsterdam; Steven.Pemberton@cwi.nl
++ *  Date:       October, 1993; March 1995
++ *              Included both files into one source, that gets compiled
++ *              in two passes. Made program auto-compiling, and auto-running,
++ *              and generally made it much easier to use.
++ *
++ *              Original Version (in Ada) published in
++ *              "Communications of the ACM" vol. 27., no. 10 (Oct. 1984),
++ *              pp. 1013 - 1030, together with the statistics
++ *              on which the distribution of statements etc. is based.
++ *
++ *              In this C version, the following C library functions are used:
++ *              - strcpy, strcmp (inside the measurement loop)
++ *              - printf, scanf (outside the measurement loop)
++ *              In addition, Berkeley UNIX system calls "times ()" or "time ()"
++ *              are used for execution time measurement. For measurements
++ *              on other systems, these calls have to be changed.
++ *
++ *  Collection of Results:
++ *              Reinhold Weicker (address see above) and
++ *              
++ *              Rick Richardson
++ *              PC Research. Inc.
++ *              94 Apple Orchard Drive
++ *              Tinton Falls, NJ 07724
++ *                      Phone:  (201) 389-8963 (9-17 EST)               
++ *                      Usenet: ...!uunet!pcrat!rick
++ *
++ *      Please send results to Rick Richardson and/or Reinhold Weicker.
++ *      Complete information should be given on hardware and software used.
++ *      Hardware information includes: Machine type, CPU, type and size
++ *      of caches; for microprocessors: clock frequency, memory speed
++ *      (number of wait states).
++ *      Software information includes: Compiler (and runtime library)
++ *      manufacturer and version, compilation switches, OS version.
++ *      The Operating System version may give an indication about the compiler;
++ *      Dhrystone itself performs no OS calls in the measurement loop.
++ *
++ *      The complete output generated by the program should be mailed
++ *      such that at least some checks for correctness can be made.
++ *
++ ***************************************************************************
++ *
++ * Defines:     The following "Defines" are possible:
++ *      -DREG          (default: Not defined)
++ *              As an approximation to what an average C programmer
++ *              might do, causes the "register" storage class to be applied
++ *              - for local variables, if they are used (dynamically)
++ *                five or more times
++ *              - for parameters if they are used (dynamically)
++ *                six or more times
++ *              Note that an optimal "register" strategy is
++ *              compiler-dependent, and that "register" declarations
++ *              do not necessarily lead to faster execution.
++ *      -DNOSTRUCTASSIGN        (default: Not defined)
++ *              Define if the C compiler does not support
++ *              assignment of structures.
++ *      -DNOENUMS               (default: Not defined)
++ *              Define if the C compiler does not support
++ *              enumeration types.
++ *      -DTIMES                 (default)
++ *      -DTIME
++ *              The "times" function of UNIX (returning process times)
++ *              or the "time" function (returning wallclock time)
++ *              is used for measurement. 
++ *              For single user machines, "time ()" is adequate. For
++ *              multi-user machines where you cannot get single-user
++ *              access, use the "times ()" function. If you have
++ *              neither, use a stopwatch in the dead of night.
++ *              "printf"s are provided marking the points "Start Timer"
++ *              and "Stop Timer". DO NOT use the UNIX "time(1)"
++ *              command, as this will measure the total time to
++ *              run this program, which will (erroneously) include
++ *              the time to allocate storage (malloc) and to perform
++ *              the initialization.
++ *      -DHZ=nnn
++ *              In Berkeley UNIX, the function "times" returns process
++ *              time in 1/HZ seconds, with HZ = 60 for most systems.
++ *              CHECK YOUR SYSTEM DESCRIPTION BEFORE YOU JUST APPLY
++ *              A VALUE.
++ *
++ ***************************************************************************
++ *
++ *  History:	Version C/2.1 was made for two reasons:
++ *
++ *	1) There was an obvious need for a common C version of
++ *      Dhrystone, since C is at present the most popular system
++ *      programming language for the class of processors
++ *      (microcomputers, minicomputers) where Dhrystone is used most.
++ *      There should be, as far as possible, only one C version of
++ *      Dhrystone such that results can be compared without
++ *      restrictions. In the past, the C versions distributed
++ *      by Rick Richardson (Version 1.1) and by Reinhold Weicker
++ *      had small (though not significant) differences.
++ *
++ *      2) As far as it is possible without changes to the Dhrystone
++ *      statistics, optimizing compilers should be prevented from
++ *      removing significant statements.
++ *
++ *      This C version has been developed in cooperation with
++ *      Rick Richardson (Tinton Falls, NJ), it incorporates many
++ *      ideas from the "Version 1.1" distributed previously by
++ *      him over the UNIX network Usenet.
++ *      I also thank Chaim Benedelac (National Semiconductor),
++ *      David Ditzel (SUN), Earl Killian and John Mashey (MIPS),
++ *      Alan Smith and Rafael Saavedra-Barrera (UC at Berkeley)
++ *      for their help with comments on earlier versions of the
++ *      benchmark.
++ *
++ *  Changes:    In the initialization part, this version follows mostly
++ *      Rick Richardson's version distributed via Usenet, not the
++ *      version distributed earlier via floppy disk by Reinhold Weicker.
++ *      As a concession to older compilers, names have been made
++ *      unique within the first 8 characters.
++ *      Inside the measurement loop, this version follows the
++ *      version previously distributed by Reinhold Weicker.
++ *
++ *      At several places in the benchmark, code has been added,
++ *      but within the measurement loop only in branches that 
++ *      are not executed. The intention is that optimizing compilers
++ *      should be prevented from moving code out of the measurement
++ *      loop, or from removing code altogether. Since the statements
++ *      that are executed within the measurement loop have NOT been
++ *      changed, the numbers defining the "Dhrystone distribution"
++ *      (distribution of statements, operand types and locality)
++ *      still hold. Except for sophisticated optimizing compilers,
++ *      execution times for this version should be the same as
++ *      for previous versions.
++ *
++ *      Since it has proven difficult to subtract the time for the
++ *      measurement loop overhead in a correct way, the loop check
++ *      has been made a part of the benchmark. This does have
++ *      an impact - though a very minor one - on the distribution
++ *      statistics which have been updated for this version.
++ *
++ *      All changes within the measurement loop are described
++ *      and discussed in the companion paper "Rationale for
++ *      Dhrystone version 2".
++ *
++ *      Because of the self-imposed limitation that the order and
++ *      distribution of the executed statements should not be
++ *      changed, there are still cases where optimizing compilers
++ *      may not generate code for some statements. To a certain
++ *      degree, this is unavoidable for small synthetic benchmarks.
++ *      Users of the benchmark are advised to check code listings
++ *      whether code is generated for all statements of Dhrystone.
++ *
++ *      Version 2.1 is identical to version 2.0 distributed via
++ *      the UNIX network Usenet in March 1988 except that it corrects
++ *      some minor deficiencies that were found by users of version 2.0.
++ *      The only change within the measurement loop is that a
++ *      non-executed "else" part was added to the "if" statement in
++ *      Func_3, and a non-executed "else" part removed from Proc_3.
++ *
++ * Version C/2.2, Steven Pemberton, October 1993
++ *	Functionally, identical to version 2.2; the changes are in
++ *	how you compile and use it:
++ *	- Everything is in one file now, but compiled in 2 passes
++ *	- Compile (and run) by running the file through the shell: 'sh dhry.c"
++ *	- Uses the system definition of HZ if one can be found
++ *	- HZ must be defined, otherwise it won't compile (no defaults here)
++ *	- The (uninteresting) output is printed to stderr (dhry2 > /dev/null)
++ *	- The number of loops is passed as a parameter, rather than read
++ *	  (dhry2 500000)
++ *	- If the number of loops is insufficient to get a good result,
++ *	  it repeats it with loops*10 until it is enough (rather than just
++ *	  stopping)
++ *	- Output says which sort of clock it is using, and the HZ value
++ *	- You can use -DREG instead of the -DREG=register of previous versions
++ *	- Some stylistic cleanups.
++ *		
++ ***************************************************************************
++ *
++ *  Compilation model and measurement (IMPORTANT):
++ *
++ *  The following "ground rules" apply for measurements:
++ *  - Separate compilation
++ *  - No procedure merging
++ *  - Otherwise, compiler optimizations are allowed but should be indicated
++ *  - Default results are those without register declarations
++ *  See the companion paper "Rationale for Dhrystone Version 2" for a more
++ *  detailed discussion of these ground rules.
++ *
++ *  For 16-Bit processors (e.g. 80186, 80286), times for all compilation
++ *  models ("small", "medium", "large" etc.) should be given if possible,
++ *  together with a definition of these models for the compiler system used.
++ *
++ **************************************************************************
++ *
++ *  Dhrystone (C version) statistics:
++ *
++ *  [Comment from the first distribution, updated for version 2.
++ *   Note that because of language differences, the numbers are slightly
++ *   different from the Ada version.]
++ *
++ *  The following program contains statements of a high level programming
++ *  language (here: C) in a distribution considered representative:           
++ *
++ *    assignments                  52 (51.0 %)
++ *    control statements           33 (32.4 %)
++ *    procedure, function calls    17 (16.7 %)
++ *
++ *  103 statements are dynamically executed. The program is balanced with
++ *  respect to the three aspects:                                             
++ *
++ *    - statement type
++ *    - operand type
++ *    - operand locality
++ *         operand global, local, parameter, or constant.                     
++ *
++ *  The combination of these three aspects is balanced only approximately.    
++ *
++ *  1. Statement Type:                                                        
++ *  -----------------             number
++ *
++ *     V1 = V2                     9
++ *       (incl. V1 = F(..)
++ *     V = Constant               12
++ *     Assignment,                 7
++ *       with array element
++ *     Assignment,                 6
++ *       with record component
++ *                                --
++ *                                34       34
++ *
++ *     X = Y +|-|"&&"|"|" Z        5
++ *     X = Y +|-|"==" Constant     6
++ *     X = X +|- 1                 3
++ *     X = Y *|/ Z                 2
++ *     X = Expression,             1
++ *           two operators
++ *     X = Expression,             1
++ *           three operators
++ *                                --
++ *                                18       18
++ *
++ *     if ....                    14
++ *       with "else"      7
++ *       without "else"   7
++ *           executed        3
++ *           not executed    4
++ *     for ...                     7  |  counted every time
++ *     while ...                   4  |  the loop condition
++ *     do ... while                1  |  is evaluated
++ *     switch ...                  1
++ *     break                       1
++ *     declaration with            1
++ *       initialization
++ *                                --
++ *                                34       34
++ *
++ *     P (...)  procedure call    11
++ *       user procedure      10
++ *       library procedure    1
++ *     X = F (...)
++ *             function  call      6
++ *       user function        5                                         
++ *       library function     1                                               
++ *                                --                                          
++ *                                17       17
++ *                                        ---
++ *                                        103
++ *
++ *    The average number of parameters in procedure or function calls
++ *    is 1.82 (not counting the function values aX *
++ *
++ *  2. Operators
++ *  ------------
++ *                          number    approximate
++ *                                    percentage
++ *
++ *    Arithmetic             32          50.8                                 
++ *
++ *       +                     21          33.3                              
++ *       -                      7          11.1                              
++ *       *                      3           4.8
++ *       / (int div)            1           1.6
++ *
++ *    Comparison             27           42.8
++ *
++ *       ==                     9           14.3
++ *       /=                     4            6.3
++ *       >                      1            1.6
++ *       <                      3            4.8
++ *       >=                     1            1.6
++ *       <=                     9           14.3
++ *
++ *    Logic                   4            6.3
++ *
++ *       && (AND-THEN)          1            1.6
++ *       |  (OR)                1            1.6
++ *       !  (NOT)               2            3.2
++ * 
++ *                           --          -----
++ *                           63          100.1
++ *
++ *
++ *  3. Operand Type (counted once per operand reference):
++ *  ---------------
++ *                          number    approximate
++ *                                    percentage
++ *
++ *     Integer               175        72.3 %
++ *     Character              45        18.6 %
++ *     Pointer                12         5.0 %
++ *     String30                6         2.5 %
++ *     Array                   2         0.8 %
++ *     Record                  2         0.8 %
++ *                           ---       -------
++ *                           242       100.0 %
++ *
++ *  When there is an access path leading to the final operand (e.g. a record
++ *  component), only the final data type on the access path is counted.       
++ *
++ *
++ *  4. Operand Locality:                                                      
++ *  -------------------
++ *                                number    approximate
++ *                                          percentage
++ *
++ *     local variable              114        47.1 %
++ *     global variable              22         9.1 %
++ *     parameter                    45        18.6 %
++ *        value                        23         9.5 %
++ *        reference                    22         9.1 %
++ *     function result               6         2.5 %
++ *     constant                     55        22.7 %
++ *                                 ---       -------
++ *                                 242       100.0 %
++ *
++ *  The program does not compute anything meaningful, but it is syntactically
++ *  and semantically correct. All variables have a value assigned to them
++ *  before they are used as a source operand.
++ *
++ *  There has been no explicit effort to account for the effects of a
++ *  cache, or to balance the use of long or short displacements for code or
++ *  data.
++ *
++ ***************************************************************************
++ */
++
++/* Compiler and system dependent definitions: */
++
++/* variables for time measurement: */
++
++#ifdef TIME
++
++#define CLOCK_TYPE "time()"
++#undef HZ
++#define HZ	CORE_HZ /* time() returns time in clock cycles*/
++extern long     time(); /* see library function "time"  */
++#define Too_Small_Time HZ /* Measurements should last at least 2 seconds */
++#define Start_Timer() Begin_Time = time ( (long *) 0)
++#define Stop_Timer()  End_Time   = time ( (long *) 0)
++
++#else
++
++#ifdef MSC_CLOCK /* Use Microsoft C hi-res clock */
++
++#undef HZ
++#undef TIMES
++#include <time.h>
++#define HZ	CLK_TCK
++#define CLOCK_TYPE "MSC clock()"
++extern clock_t	clock();
++#define Too_Small_Time (2*HZ)
++#define Start_Timer() Begin_Time = clock()
++#define Stop_Timer()  End_Time   = clock()
++
++#elif defined(__riscv)
++
++/*#define HZ 1000000*/
++#define Too_Small_Time 1
++#define CLOCK_TYPE "rdcycle()"
++#define Start_Timer() time()
++#define Stop_Timer() time()
++
++#else
++                /* Use times(2) time function unless    */
++                /* explicitly defined otherwise         */
++#define CLOCK_TYPE "times()"
++#include <sys/types.h>
++#include <sys/times.h>
++#ifndef HZ	/* Added by SP 900619 */
++#include <sys/param.h> /* If your system doesn't have this, use -DHZ=xxx */
++#else
++	*** You must define HZ!!! ***
++#endif /* HZ */
++#ifndef PASS2
++struct tms      time_info;
++#endif
++/*extern  int     times ();*/
++                /* see library function "times" */
++#define Too_Small_Time (2*HZ)
++                /* Measurements should last at least about 2 seconds */
++#define Start_Timer() times(&time_info); Begin_Time=(long)time_info.tms_utime
++#define Stop_Timer()  times(&time_info); End_Time = (long)time_info.tms_utime
++
++#endif /* MSC_CLOCK */
++#endif /* TIME */
++
++
++#define Mic_secs_Per_Second     1000000
++#define NUMBER_OF_RUNS		500 /* Default number of runs */
++
++#ifdef  NOSTRUCTASSIGN
++#define structassign(d, s)      memcpy(&(d), &(s), sizeof(d))
++#else
++#define structassign(d, s)      d = s
++#endif
++
++#ifdef  NOENUM
++#define Ident_1 0
++#define Ident_2 1
++#define Ident_3 2
++#define Ident_4 3
++#define Ident_5 4
++  typedef int   Enumeration;
++#else
++  typedef       enum    {Ident_1, Ident_2, Ident_3, Ident_4, Ident_5}
++                Enumeration;
++#endif
++        /* for boolean and enumeration types in Ada, Pascal */
++
++/* General definitions: */
++
++#include <stdio.h>
++#include <string.h>
++                /* for strcpy, strcmp */
++
++#define Null 0 
++                /* Value of a Null pointer */
++#define true  1
++#define false 0
++
++typedef int     One_Thirty;
++typedef int     One_Fifty;
++typedef char    Capital_Letter;
++typedef int     Boolean;
++typedef char    Str_30 [31];
++typedef int     Arr_1_Dim [50];
++typedef int     Arr_2_Dim [50] [50];
++
++typedef struct record 
++    {
++    struct record *Ptr_Comp;
++    Enumeration    Discr;
++    union {
++          struct {
++                  Enumeration Enum_Comp;
++                  int         Int_Comp;
++                  char        Str_Comp [31];
++                  } var_1;
++          struct {
++                  Enumeration E_Comp_2;
++                  char        Str_2_Comp [31];
++                  } var_2;
++          struct {
++                  char        Ch_1_Comp;
++                  char        Ch_2_Comp;
++                  } var_3;
++          } variant;
++      } Rec_Type, *Rec_Pointer;
++
++#endif
+\ No newline at end of file
+diff -Naur riscv-tests/src/dhrystone_main.c riscv-tests_ngrriscv/src/dhrystone_main.c
+--- riscv-tests/src/dhrystone_main.c	1970-01-01 01:00:00.000000000 +0100
++++ riscv-tests_ngrriscv/src/dhrystone_main.c	2018-11-04 14:19:39.295000000 +0000
+@@ -0,0 +1,344 @@
++// See LICENSE for license details.
++
++//**************************************************************************
++// Dhrystone bencmark
++//--------------------------------------------------------------------------
++//
++// This is the classic Dhrystone synthetic integer benchmark.
++//
++
++#pragma GCC optimize ("no-inline")
++
++#include "dhrystone.h"
++
++#define debug_printf e_printf
++#define printf e_printf
++//#define debug_printf(str, ...) {}
++
++#include <alloca.h>
++
++/* Global Variables: */
++
++Rec_Pointer     Ptr_Glob,
++                Next_Ptr_Glob;
++int             Int_Glob;
++Boolean         Bool_Glob;
++char            Ch_1_Glob,
++                Ch_2_Glob;
++int             Arr_1_Glob [50];
++int             Arr_2_Glob [50] [50];
++
++Enumeration     Func_1 ();
++  /* forward declaration necessary since Enumeration may not simply be int */
++
++#ifndef REG
++        Boolean Reg = false;
++#define REG
++        /* REG becomes defined as empty */
++        /* i.e. no register variables   */
++#else
++        Boolean Reg = true;
++#undef REG
++#define REG register
++#endif
++
++Boolean		Done;
++
++long            Begin_Time,
++                End_Time,
++                User_Time;
++long            Microseconds,
++                Dhrystones_Per_Second;
++
++/* end of variables for time measurement */
++
++
++int main (int argc, char** argv)
++/*****/
++  /* main program, corresponds to procedures        */
++  /* Main and Proc_0 in the Ada version             */
++{
++        One_Fifty       Int_1_Loc;
++  REG   One_Fifty       Int_2_Loc;
++        One_Fifty       Int_3_Loc;
++  REG   char            Ch_Index;
++        Enumeration     Enum_Loc;
++        Str_30          Str_1_Loc;
++        Str_30          Str_2_Loc;
++  REG   int             Run_Index;
++  REG   int             Number_Of_Runs;
++
++  /* Arguments */
++  Number_Of_Runs = NUMBER_OF_RUNS;
++
++  /* Initializations */
++
++  Next_Ptr_Glob = (Rec_Pointer) alloca (sizeof (Rec_Type));
++  Ptr_Glob = (Rec_Pointer) alloca (sizeof (Rec_Type));
++
++  Ptr_Glob->Ptr_Comp                    = Next_Ptr_Glob;
++  Ptr_Glob->Discr                       = Ident_1;
++  Ptr_Glob->variant.var_1.Enum_Comp     = Ident_3;
++  Ptr_Glob->variant.var_1.Int_Comp      = 40;
++  strcpy (Ptr_Glob->variant.var_1.Str_Comp,
++          "DHRYSTONE PROGRAM, SOME STRING");
++  strcpy (Str_1_Loc, "DHRYSTONE PROGRAM, 1'ST STRING");
++
++  Arr_2_Glob [8][7] = 10;
++        /* Was missing in published program. Without this statement,    */
++        /* Arr_2_Glob [8][7] would have an undefined value.             */
++        /* Warning: With 16-Bit processors and Number_Of_Runs > 32000,  */
++        /* overflow may occur for this array element.                   */
++
++  debug_printf("\n");
++  debug_printf("Dhrystone Benchmark, Version %s\n", Version);
++  if (Reg)
++  {
++    debug_printf("Program compiled with 'register' attribute\n");
++  }
++  else
++  {
++    debug_printf("Program compiled without 'register' attribute\n");
++  }
++  debug_printf("Using %s, HZ=%d\n", CLOCK_TYPE, HZ);
++  debug_printf("\n");
++
++  Done = false;
++  while (!Done) {
++    debug_printf("Trying %d runs through Dhrystone:\n", Number_Of_Runs);
++
++    /***************/
++    /* Start timer */
++    /***************/
++
++    setStats(1);
++    Begin_Time=Start_Timer();
++
++    for (Run_Index = 1; Run_Index <= Number_Of_Runs; ++Run_Index)
++    {
++
++      Proc_5();
++      Proc_4();
++	/* Ch_1_Glob == 'A', Ch_2_Glob == 'B', Bool_Glob == true */
++      Int_1_Loc = 2;
++      Int_2_Loc = 3;
++      strcpy (Str_2_Loc, "DHRYSTONE PROGRAM, 2'ND STRING");
++      Enum_Loc = Ident_2;
++      Bool_Glob = ! Func_2 (Str_1_Loc, Str_2_Loc);
++	/* Bool_Glob == 1 */
++      while (Int_1_Loc < Int_2_Loc)  /* loop body executed once */
++      {
++	Int_3_Loc = 5 * Int_1_Loc - Int_2_Loc;
++	  /* Int_3_Loc == 7 */
++	Proc_7 (Int_1_Loc, Int_2_Loc, &Int_3_Loc);
++	  /* Int_3_Loc == 7 */
++	Int_1_Loc += 1;
++      } /* while */
++	/* Int_1_Loc == 3, Int_2_Loc == 3, Int_3_Loc == 7 */
++      Proc_8 (Arr_1_Glob, Arr_2_Glob, Int_1_Loc, Int_3_Loc);
++	/* Int_Glob == 5 */
++      Proc_1 (Ptr_Glob);
++      for (Ch_Index = 'A'; Ch_Index <= Ch_2_Glob; ++Ch_Index)
++			       /* loop body executed twice */
++      {
++	if (Enum_Loc == Func_1 (Ch_Index, 'C'))
++	    /* then, not executed */
++	  {
++	  Proc_6 (Ident_1, &Enum_Loc);
++	  strcpy (Str_2_Loc, "DHRYSTONE PROGRAM, 3'RD STRING");
++	  Int_2_Loc = Run_Index;
++	  Int_Glob = Run_Index;
++	  }
++      }
++	/* Int_1_Loc == 3, Int_2_Loc == 3, Int_3_Loc == 7 */
++      Int_2_Loc = Int_2_Loc * Int_1_Loc;
++      Int_1_Loc = Int_2_Loc / Int_3_Loc;
++      Int_2_Loc = 7 * (Int_2_Loc - Int_3_Loc) - Int_1_Loc;
++	/* Int_1_Loc == 1, Int_2_Loc == 13, Int_3_Loc == 7 */
++      Proc_2 (&Int_1_Loc);
++	/* Int_1_Loc == 5 */
++
++    } /* loop "for Run_Index" */
++
++    /**************/
++    /* Stop timer */
++    /**************/
++
++    End_Time=Stop_Timer();
++    setStats(0);
++
++    User_Time = End_Time - Begin_Time;
++
++    //if (User_Time < Too_Small_Time)
++    //{
++    //  printf("Measured time too small to obtain meaningful results\n");
++    //  Number_Of_Runs = Number_Of_Runs * 10;
++    //  printf("\n");
++    //} else 
++    Done = true;
++  }
++
++  debug_printf("Final values of the variables used in the benchmark:\n");
++  debug_printf("\n");
++  debug_printf("Int_Glob:            %d\n", Int_Glob);
++  debug_printf("        should be:   %d\n", 5);
++  debug_printf("Bool_Glob:           %d\n", Bool_Glob);
++  debug_printf("        should be:   %d\n", 1);
++  debug_printf("Ch_1_Glob:           %c\n", Ch_1_Glob);
++  debug_printf("        should be:   %c\n", 'A');
++  debug_printf("Ch_2_Glob:           %c\n", Ch_2_Glob);
++  debug_printf("        should be:   %c\n", 'B');
++  debug_printf("Arr_1_Glob[8]:       %d\n", Arr_1_Glob[8]);
++  debug_printf("        should be:   %d\n", 7);
++  debug_printf("Arr_2_Glob[8][7]:    %d\n", Arr_2_Glob[8][7]);
++  debug_printf("        should be:   Number_Of_Runs + 10\n");
++  debug_printf("Ptr_Glob->\n");
++  debug_printf("  Ptr_Comp:          %d\n", (long) Ptr_Glob->Ptr_Comp);
++  debug_printf("        should be:   (implementation-dependent)\n");
++  debug_printf("  Discr:             %d\n", Ptr_Glob->Discr);
++  debug_printf("        should be:   %d\n", 0);
++  debug_printf("  Enum_Comp:         %d\n", Ptr_Glob->variant.var_1.Enum_Comp);
++  debug_printf("        should be:   %d\n", 2);
++  debug_printf("  Int_Comp:          %d\n", Ptr_Glob->variant.var_1.Int_Comp);
++  debug_printf("        should be:   %d\n", 17);
++  debug_printf("  Str_Comp:          %s\n", Ptr_Glob->variant.var_1.Str_Comp);
++  debug_printf("        should be:   DHRYSTONE PROGRAM, SOME STRING\n");
++  debug_printf("Next_Ptr_Glob->\n");
++  debug_printf("  Ptr_Comp:          %d\n", (long) Next_Ptr_Glob->Ptr_Comp);
++  debug_printf("        should be:   (implementation-dependent), same as above\n");
++  debug_printf("  Discr:             %d\n", Next_Ptr_Glob->Discr);
++  debug_printf("        should be:   %d\n", 0);
++  debug_printf("  Enum_Comp:         %d\n", Next_Ptr_Glob->variant.var_1.Enum_Comp);
++  debug_printf("        should be:   %d\n", 1);
++  debug_printf("  Int_Comp:          %d\n", Next_Ptr_Glob->variant.var_1.Int_Comp);
++  debug_printf("        should be:   %d\n", 18);
++  debug_printf("  Str_Comp:          %s\n",
++                                Next_Ptr_Glob->variant.var_1.Str_Comp);
++  debug_printf("        should be:   DHRYSTONE PROGRAM, SOME STRING\n");
++  debug_printf("Int_1_Loc:           %d\n", Int_1_Loc);
++  debug_printf("        should be:   %d\n", 5);
++  debug_printf("Int_2_Loc:           %d\n", Int_2_Loc);
++  debug_printf("        should be:   %d\n", 13);
++  debug_printf("Int_3_Loc:           %d\n", Int_3_Loc);
++  debug_printf("        should be:   %d\n", 7);
++  debug_printf("Enum_Loc:            %d\n", Enum_Loc);
++  debug_printf("        should be:   %d\n", 1);
++  debug_printf("Str_1_Loc:           %s\n", Str_1_Loc);
++  debug_printf("        should be:   DHRYSTONE PROGRAM, 1'ST STRING\n");
++  debug_printf("Str_2_Loc:           %s\n", Str_2_Loc);
++  debug_printf("        should be:   DHRYSTONE PROGRAM, 2'ND STRING\n");
++  debug_printf("\n");
++
++
++  Microseconds = ((User_Time / Number_Of_Runs) * Mic_secs_Per_Second) / HZ;
++  Dhrystones_Per_Second = (HZ * Number_Of_Runs) /User_Time;
++  printf("Microseconds for one run through Dhrystone: %ld\n", Microseconds);
++  printf("Dhrystones per Second:                      %ld\n", Dhrystones_Per_Second);
++
++
++  printf ("User_Time : %d\n", User_Time);
++  printf ("Number_Of_Runs : %d\n", Number_Of_Runs);
++  printf ("HZ : %d\n", (int)HZ);
++
++  printf ("DMIPS per Mhz:                              ");
++  int dmips = 100ll*(1000000/1757) * Number_Of_Runs / User_Time;
++  int dmipsNatural = dmips/100;
++  int dmipsReal = (dmips - dmipsNatural*100);
++  printf ("%d.", dmipsNatural);
++  if(dmipsReal < 10) printf("0");
++  printf ("%d\n", dmipsReal);
++  return 0;
++}
++
++
++Proc_1 (Ptr_Val_Par)
++/******************/
++
++REG Rec_Pointer Ptr_Val_Par;
++    /* executed once */
++{
++  REG Rec_Pointer Next_Record = Ptr_Val_Par->Ptr_Comp;
++                                        /* == Ptr_Glob_Next */
++  /* Local variable, initialized with Ptr_Val_Par->Ptr_Comp,    */
++  /* corresponds to "rename" in Ada, "with" in Pascal           */
++
++  structassign (*Ptr_Val_Par->Ptr_Comp, *Ptr_Glob);
++  Ptr_Val_Par->variant.var_1.Int_Comp = 5;
++  Next_Record->variant.var_1.Int_Comp
++        = Ptr_Val_Par->variant.var_1.Int_Comp;
++  Next_Record->Ptr_Comp = Ptr_Val_Par->Ptr_Comp;
++  Proc_3 (&Next_Record->Ptr_Comp);
++    /* Ptr_Val_Par->Ptr_Comp->Ptr_Comp
++                        == Ptr_Glob->Ptr_Comp */
++  if (Next_Record->Discr == Ident_1)
++    /* then, executed */
++  {
++    Next_Record->variant.var_1.Int_Comp = 6;
++    Proc_6 (Ptr_Val_Par->variant.var_1.Enum_Comp,
++           &Next_Record->variant.var_1.Enum_Comp);
++    Next_Record->Ptr_Comp = Ptr_Glob->Ptr_Comp;
++    Proc_7 (Next_Record->variant.var_1.Int_Comp, 10,
++           &Next_Record->variant.var_1.Int_Comp);
++  }
++  else /* not executed */
++    structassign (*Ptr_Val_Par, *Ptr_Val_Par->Ptr_Comp);
++} /* Proc_1 */
++
++
++Proc_2 (Int_Par_Ref)
++/******************/
++    /* executed once */
++    /* *Int_Par_Ref == 1, becomes 4 */
++
++One_Fifty   *Int_Par_Ref;
++{
++  One_Fifty  Int_Loc;
++  Enumeration   Enum_Loc;
++
++  Int_Loc = *Int_Par_Ref + 10;
++  do /* executed once */
++    if (Ch_1_Glob == 'A')
++      /* then, executed */
++    {
++      Int_Loc -= 1;
++      *Int_Par_Ref = Int_Loc - Int_Glob;
++      Enum_Loc = Ident_1;
++    } /* if */
++  while (Enum_Loc != Ident_1); /* true */
++} /* Proc_2 */
++
++
++Proc_3 (Ptr_Ref_Par)
++/******************/
++    /* executed once */
++    /* Ptr_Ref_Par becomes Ptr_Glob */
++
++Rec_Pointer *Ptr_Ref_Par;
++
++{
++  if (Ptr_Glob != Null)
++    /* then, executed */
++    *Ptr_Ref_Par = Ptr_Glob->Ptr_Comp;
++  Proc_7 (10, Int_Glob, &Ptr_Glob->variant.var_1.Int_Comp);
++} /* Proc_3 */
++
++
++Proc_4 () /* without parameters */
++/*******/
++    /* executed once */
++{
++  Boolean Bool_Loc;
++
++  Bool_Loc = Ch_1_Glob == 'A';
++  Bool_Glob = Bool_Loc | Bool_Glob;
++  Ch_2_Glob = 'B';
++} /* Proc_4 */
++
++
++Proc_5 () /* without parameters */
++/*******/
++    /* executed once */
++{
++  Ch_1_Glob = 'A';
++  Bool_Glob = false;
++} /* Proc_5 */
+\ No newline at end of file
+diff -Naur riscv-tests/src/start.S riscv-tests_ngrriscv/src/start.S
+--- riscv-tests/src/start.S	1970-01-01 01:00:00.000000000 +0100
++++ riscv-tests_ngrriscv/src/start.S	2018-11-20 20:02:35.466000000 +0000
+@@ -0,0 +1,26 @@
++	.section .init
++	.globl _start
++	.type _start,@function
++
++_start:
++.option push
++.option norelax
++	la gp, __global_pointer$
++.option pop
++	la sp, _sp
++
++	/* Clear bss section */
++	la a0, __bss_start
++	la a1, _end
++	bgeu a0, a1, 2f
++1:
++	sw zero, (a0)
++	addi a0, a0, 4
++	bltu a0, a1, 1b
++2:
++
++	call main
++
++    li      x1,0x8000F000
++    jalr	x0,0(x1)
++
+diff -Naur riscv-tests/src/stdlib.c riscv-tests_ngrriscv/src/stdlib.c
+--- riscv-tests/src/stdlib.c	1970-01-01 01:00:00.000000000 +0100
++++ riscv-tests_ngrriscv/src/stdlib.c	2018-11-20 19:55:37.124000000 +0000
+@@ -0,0 +1,137 @@
++// This is free and unencumbered software released into the public domain.
++//
++// Anyone is free to copy, modify, publish, use, compile, sell, or
++// distribute this software, either in source code form or as a compiled
++// binary, for any purpose, commercial or non-commercial, and by any
++// means.
++
++#include <stdarg.h>
++#include <stdint.h>
++
++void setStats(int enable)
++{
++
++}
++
++//#define UART_BASE  ((volatile uint32_t*)(0xF0000))
++//#define MTIME_BASE ((volatile uint32_t*)(0xF0010))
++
 +#define UART_BASE_ADDRESS        (0x8000C000)
++#define TIMER_BASE_ADDRESS       (0x8000C008)
 +#define UART_DATA_TX_REG         (UART_BASE_ADDRESS + 0x0)
 +#define UART_STATUS_REG          (UART_BASE_ADDRESS + 0x4)
 +#define UART_CONTROL_REG         (UART_BASE_ADDRESS + 0x4)
++#define TIMER_COUNTER_REG        (TIMER_BASE_ADDRESS + 0x0)
 +
 +#define TX_BUSY_FLAG_BIT         (1<<1)
 +#define SEND_TX_BIT              (1<<4)
++
++#define putchar outbyte
++
++static void printf_c(int c)
++{
++	putchar(c);
++}
++
++static void printf_s(char *p)
++{
++	while (*p)
++		putchar(*(p++));
++}
++
++static void printf_d(int val)
++{
++	char buffer[32];
++	char *p = buffer;
++	if (val < 0) {
++		printf_c('-');
++		val = -val;
++	}
++	while (val || p == buffer) {
++		*(p++) = '0' + val % 10;
++		val = val / 10;
++	}
++	while (p != buffer)
++		printf_c(*(--p));
++}
++
++int e_printf(const char *format, ...)
++{
++	int i;
++	va_list ap;
++
++	va_start(ap, format);
++
++	for (i = 0; format[i]; i++)
++		if (format[i] == '%') {
++			while (format[++i]) {
++				if (format[i] == 'c') {
++					printf_c(va_arg(ap,int));
++					break;
++				}
++				if (format[i] == 's') {
++					printf_s(va_arg(ap,char*));
++					break;
++				}
++				if (format[i] == 'd') {
++					printf_d(va_arg(ap,int));
++					break;
++				}
++			}
++		} else
++			printf_c(format[i]);
++
++	va_end(ap);
++}
++
++
++int puts(char *s){
++  while (*s) {
++    putchar(*s);
++    s++;
++  }
++  putchar('\n');
++  return 0;
++}
 +
 +void outbyte (char value){  
 +    while (((*(volatile unsigned int*)(UART_STATUS_REG)) & TX_BUSY_FLAG_BIT) == TX_BUSY_FLAG_BIT);
@@ -19,45 +1375,38 @@ diff -Naur riscv-tests/benchmarks/common/syscalls.c riscv-tests_ngrriscv/benchma
 +    (*(volatile unsigned int *)(UART_CONTROL_REG) = SEND_TX_BIT); 
 +}
 +
++//void putchar(char c){
++//    while(UART_BASE[0]);
++//	UART_BASE[0] = c;
++//}
 +
- static uintptr_t syscall(uintptr_t which, uint64_t arg0, uint64_t arg1, uint64_t arg2)
--{
-+{      
-   volatile uint64_t magic_mem[8] __attribute__((aligned(64)));
--  magic_mem[0] = which;
--  magic_mem[1] = arg0;
--  magic_mem[2] = arg1;
--  magic_mem[3] = arg2;
--  __sync_synchronize();
--
--  tohost = (uintptr_t)magic_mem;
--  while (fromhost == 0)
--    ;
--  fromhost = 0;
- 
--  __sync_synchronize();
--  return magic_mem[0];
-+  if (which==SYS_write){
-+        int i = 0;
-+        int len = (int) arg2;
-+        char *s = (char *) arg1;
-+        for (i=0; i<len; i++) 
-+            outbyte(s[i]);      
-+  }           
-+  return (uintptr_t) arg0;
- }
- 
- #define NUM_COUNTERS 2
-diff -Naur riscv-tests/benchmarks/Makefile riscv-tests_ngrriscv/benchmarks/Makefile
---- riscv-tests/benchmarks/Makefile	2018-10-28 12:47:05.223000000 +0000
-+++ riscv-tests_ngrriscv/benchmarks/Makefile	2018-10-28 12:45:07.854000000 +0000
-@@ -17,7 +17,8 @@
- # Sources
- #--------------------------------------------------------------------
- 
--bmarks = \
-+bmarks = dhrystone
-+bmarks_all = \
- 	median \
- 	qsort \
- 	rsort \
++//Time in microsecond
++long time(){
++  return (*(volatile unsigned int *)(TIMER_COUNTER_REG));  
++}
++
++//See https://github.com/zephyrproject-rtos/meta-zephyr-sdk/issues/110
++//It does not interfere with the benchmark code.
++unsigned long long __divdi3 (unsigned long long numerator,unsigned  long long divisor)
++{
++    unsigned long long result = 0;
++    unsigned long long count = 0;
++    unsigned long long remainder = numerator;
++
++    while((divisor & 0x8000000000000000ll) == 0) {
++        divisor = divisor << 1;
++        count++;
++    }
++    while(remainder != 0) {
++        if(remainder >= divisor) {
++            remainder = remainder - divisor;
++            result = result | (1 << count);
++        }
++        if(count == 0) {
++            break;
++        }
++        divisor = divisor >> 1;
++        count--;
++    }
++    return result;
++}

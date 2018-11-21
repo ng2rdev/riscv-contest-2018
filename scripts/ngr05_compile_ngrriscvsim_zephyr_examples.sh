@@ -1,7 +1,10 @@
 #######################################################################
-#Compiles the Zephyr
+#Compiles the Zephyr OS examples
 
 pushd .
+
+mkdir riscv-zephyr-examples
+
 if [ $IS_MSYS2_OS -eq 1 ]
 then
     export ZEPHYR_TOOLCHAIN_VARIANT=cross-compile
@@ -30,20 +33,41 @@ cd samples/hello_world
 mkdir build && cd build
 cmake -GNinja -DBOARD=ggupduino2_ngrriscv ..
 ninja 
-cp ./zephyr/zephyr.elf /data/ngrriscv/ngrriscv-zephyr-tests/zephyr_hello_world.elf
+cp ./zephyr/zephyr.elf ${BASE_DIR}/riscv-zephyr-examples/zephyr_hello_world.elf
 cd ../..
 
 cd samples/philosophers/
 mkdir build && cd build
 cmake -GNinja -DBOARD=ggupduino2_ngrriscv ..
 ninja
-cp ./zephyr/zephyr.elf /data/ngrriscv/ngrriscv-zephyr-tests/zephyr_philosophers.elf
+cp ./zephyr/zephyr.elf ${BASE_DIR}/riscv-zephyr-examples/zephyr_philosophers.elf
 cd ../.. 
 
 cd samples/synchronization/
 mkdir build && cd build
 cmake -GNinja -DBOARD=ggupduino2_ngrriscv ..
 ninja 
-cp ./zephyr/zephyr.elf /data/ngrriscv/ngrriscv-zephyr-tests/zephyr_synchronization.elf
+cp ./zephyr/zephyr.elf ${BASE_DIR}/riscv-zephyr-examples/zephyr_synchronization.elf
 cd ../.. 
+
+
+declare -a rv32im_zephyr_examples=(
+    "zephyr_hello_world" 
+    "zephyr_philosophers" 
+    "zephyr_synchronization")
+ 
+for f in "${rv32im_zephyr_examples[@]}"
+do
+    ${RISCV_PREFIX}objdump -D --disassembler-options=no-aliases,numeric ${BASE_DIR}/riscv-zephyr-examples/${f}.elf  > ${BASE_DIR}/riscv-zephyr-examples/${f}.dump
+    ${RISCV_PREFIX}objdump -t         ${BASE_DIR}/riscv-zephyr-examples/${f}.elf | sort > ${BASE_DIR}/riscv-zephyr-examples/${f}.symbs
+    ${RISCV_PREFIX}objcopy -O srec    ${BASE_DIR}/riscv-zephyr-examples/${f}.elf ${BASE_DIR}/riscv-zephyr-examples/${f}.srec
+    ${RISCV_PREFIX}objcopy -O binary  ${BASE_DIR}/riscv-zephyr-examples/${f}.elf ${BASE_DIR}/riscv-zephyr-examples/${f}.bin
+    ${RISCV_PREFIX}objcopy -O verilog ${BASE_DIR}/riscv-zephyr-examples/${f}.elf ${BASE_DIR}/riscv-zephyr-examples/${f}.verilog
+done
+
+${BASE_DIR}/ctools/ngrriscvsim/ngrriscvsim.exe ${BASE_DIR}/riscv-zephyr-examples/zephyr_hello_world.bin
+${BASE_DIR}/ctools/ngrriscvsim/ngrriscvsim.exe ${BASE_DIR}/riscv-zephyr-examples/zephyr_philosophers.bin
+${BASE_DIR}/ctools/ngrriscvsim/ngrriscvsim.exe ${BASE_DIR}/riscv-zephyr-examples/zephyr_synchronization.bin
+
+
 popd

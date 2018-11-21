@@ -5,6 +5,7 @@
 
 pushd .
 #RISCV_GCC_OPTS='-march=rv32im -mabi=ilp32 -mstrict-align -mbranch-cost=4 -DPREALLOCATE=1 -mcmodel=medany -static -std=gnu99 -static -nostdlib -nostartfiles -save-temps'
+unset RISCV_GCC_OPTS
 git clone --recursive https://github.com/riscv/riscv-compliance
 cd riscv-compliance
 patch -p1 < ../scripts/riscv-compliance-ngrriscv.patch

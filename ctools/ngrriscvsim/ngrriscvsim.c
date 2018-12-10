@@ -34,14 +34,15 @@
 #include <string.h>
 #include <stdint.h>
 
-#define EXIT_TRAP               0x8000F000
-#define MEM_BASE                0x80000000
-#define MEM_SIZE                0x00008000
 
-#define RISCV_UART_DATA_RXTX    0x8000C000
-#define RISCV_UART_CTRL_STATUS  0x8000C004
-#define RISCV_MTIME_BASE        0x8000C008
-#define RISCV_MTIMECMP_BASE     0x8000C00C
+#define MEM_BASE                0x80000000
+#define MEM_SIZE                0x00010000
+#define EXIT_TRAP               0x8000F000
+
+#define RISCV_UART_DATA_RXTX    0x8000FF00
+#define RISCV_UART_CTRL_STATUS  0x8000FF04
+#define RISCV_MTIME_BASE        0x8000FF10
+#define RISCV_MTIMECMP_BASE     0x8000FF18
 
 #define MSTATUS_MIE             0x00000008
 #define MSTATUS_MPIE            0x00000080
@@ -81,14 +82,12 @@ static inline void set_mask(uint32_t *x, int mask)   { *x |= (mask);}
 static inline void clear_mask(uint32_t *x, int mask) { *x &= ~(mask);}
 
 typedef struct {
+    uint8_t *mem;    
     int32_t r[32];
     uint32_t pc, pc_next;
-    int8_t *mem;
     uint32_t csr_mstatus, csr_mie, csr_mtvec, csr_mscratch, csr_mepc, csr_mcause, csr_mtval, csr_mip;
     uint32_t mcycles, mcompare;
-    uint8_t uarttxdata;
     uint8_t cur_priv;
-    //uint8_t cur_exception_mode;
 } state;
 
 int8_t sram[MEM_SIZE];
@@ -114,13 +113,24 @@ uint32_t log_enable;
     }
 #endif
 
+int minStack = 0x800098c0;
+
+void debug_stats(state *s, const char *str, int line){
+        //printf("\n***DEBUG MESSAGE:%s ", str);
+        //printf("LINE:%4d pc=0x%08x mcycles=0x%08x mcompare=0x%08x ", line, s->pc, s->mcycles, s->mcompare );
+        //printf("\nmstatus=0x%04x mie=0x%04x mtvec=0x%08x mscratch=0x%08x mepc=0x%08x mcause=0x%04x mtval=0x%08x mip=0x%04x\n",
+        //        s->csr_mstatus, s->csr_mie, s->csr_mtvec, s->csr_mscratch, s->csr_mepc, s->csr_mcause, s->csr_mtval, s->csr_mip);
+}
+
+
 static int32_t mem_fetch(state *s, uint32_t address){
     uint32_t value=0;
     uint32_t *ptr;
 
     if (address == EXIT_TRAP) exit(0);
     
-    ptr = (uint32_t *)(s->mem + (address % MEM_SIZE));
+    ptr = (uint32_t *)(&s->mem[0] + (uint32_t)(address % (uint32_t) MEM_SIZE));
+    
     value = *ptr;
 
     return(value);
@@ -153,7 +163,12 @@ static int32_t test_mem(state *s, int32_t size, uint32_t address, int32_t op){
             s->mcycles++;
         }
     }
-    /*printf("\nTEST_MEM: OP=0x%1x, address0x%8x size=0x%1x addressOK=0x%1x", op, address, size, addressOK);*/
+#ifdef DEBUG    
+    if (bppc_enabled && bppc_found){
+        printf("\nTEST_MEM: OP=0x%1x, address0x%8x size=0x%1x addressOK=0x%1x", op, address, size, addressOK);
+    }
+#endif      
+    
     
     return addressOK;
 }
@@ -163,13 +178,15 @@ static int32_t mem_read(state *s, int32_t size, uint32_t address){
     uint32_t *ptr;
 
     switch(address){
-        case RISCV_MTIMECMP_BASE    :   return (int32_t)s->mcompare;
-        case RISCV_MTIME_BASE       :   return (int32_t)s->mcycles;
+        case RISCV_MTIMECMP_BASE    :   debug_stats(s,"READ RISCV_MTIMECMP_BASE", __LINE__); return (int32_t)s->mcompare;
+        case RISCV_MTIMECMP_BASE + 4:   debug_stats(s,"READ RISCV_MTIMECMP_BASE4",__LINE__); return (int32_t)0x00000000;
+        case RISCV_MTIME_BASE       :   debug_stats(s,"READ RISCV_MTIME_BASE",__LINE__);     return (int32_t)s->mcycles;
+        case RISCV_MTIME_BASE + 4   :   debug_stats(s,"READ RISCV_MTIME_BASE4",__LINE__);    return (int32_t)0x00000000;
         case RISCV_UART_CTRL_STATUS :   return (int32_t)0x00000001;
         case RISCV_UART_DATA_RXTX   :   return (int32_t)((uint32_t)getchar());
     }
 
-    ptr = (uint32_t *)(s->mem + (address % MEM_SIZE));
+    ptr = (uint32_t *)(&s->mem[0] + (uint32_t)(address % (uint32_t) MEM_SIZE));
 
     switch(size){
         case 4: value = *(int32_t *)ptr; break;
@@ -178,6 +195,12 @@ static int32_t mem_read(state *s, int32_t size, uint32_t address){
         default: ;
     }
 
+#ifdef DEBUG    
+    if (bppc_enabled && bppc_found){
+        printf("\nMrEAD address=0x%08x value=0x%08x size=0x%1x s->mem=0x%08x sram=0x%08x ptr=0x%08x", address, value, size, &s->mem[0], &sram, ptr);
+    }
+#endif       
+    
     return(value);
 }
 
@@ -186,14 +209,17 @@ static void mem_write(state *s, int32_t size, uint32_t address, uint32_t value){
     uint32_t *ptr;
 
     switch(address){
-        case RISCV_UART_DATA_RXTX   : s->uarttxdata = (uint8_t) value; return;
-        case RISCV_MTIME_BASE       : s->mcycles    = (uint64_t) value; return;
-        case RISCV_MTIMECMP_BASE    : s->csr_mie    = value; return;
-        case EXIT_TRAP              : exit(0);
-        case RISCV_UART_CTRL_STATUS : printf("%c", (int8_t)(s->uarttxdata & 0xff)); return;
+        
+        case RISCV_MTIME_BASE       : debug_stats(s,"WRITE RISCV_MTIME_BASE",__LINE__);    s->mcycles    = value; return;
+        case RISCV_MTIME_BASE + 4   : debug_stats(s,"WRITE RISCV_MTIME_BASE4",__LINE__);   return;
+        case RISCV_MTIMECMP_BASE    : debug_stats(s,"WRITE RISCV_MTIMECMP_BASE",__LINE__); s->mcompare   = value; s->csr_mip &= ~MIP_MTIP; return;
+        case RISCV_MTIMECMP_BASE + 4: debug_stats(s,"WRITE RISCV_MTIMECMP_BASE4",__LINE__);return;
+        case RISCV_UART_DATA_RXTX   : printf("%c", (int8_t)(value & 0xff)); return;
+        case RISCV_UART_CTRL_STATUS : return;
+        case EXIT_TRAP              : exit(0);        
     }
 
-    ptr = (uint32_t *)(s->mem + (address % MEM_SIZE));
+    ptr = (uint32_t *)(&s->mem[0] + (uint32_t)(address % (uint32_t) MEM_SIZE));
 
     switch(size){
         case 4: *(int32_t *)ptr = value;            break;
@@ -201,6 +227,14 @@ static void mem_write(state *s, int32_t size, uint32_t address, uint32_t value){
         case 1: *(int8_t *)ptr = (uint8_t)value;    break;
         default: ;
     }
+    
+#ifdef DEBUG        
+    if (bppc_enabled && bppc_found){
+        printf("\nMWRITE address=0x%08x value=0x%08x size=0x%1x s->mem=0x%08x sram=0x%08x ptr=0x%08x", address, value, size, &s->mem[0], &sram, ptr);
+
+    }
+#endif     
+    
 }
 
 int32_t csr_op(state *s, uint8_t op, uint8_t reg, uint32_t value, uint16_t csr ){
@@ -239,6 +273,7 @@ int32_t csr_op(state *s, uint8_t op, uint8_t reg, uint32_t value, uint16_t csr )
         case 0x341:  s->csr_mepc     = newvalue & 0xFFFFFFFC;   break;
         case 0x342:  s->csr_mcause   = newvalue;                break;
         case 0x343:  s->csr_mtval    = newvalue;                break;
+        case 0x344:  s->csr_mip      = newvalue;                break;        
         default   : ;
     }
 
@@ -254,7 +289,7 @@ void exec_ecall(state *s){
     s->csr_mcause   = EXC_CAUSE_ECALL_MMODE;
     s->csr_mtval    = 0;
     s->csr_mepc     = s->pc & 0xFFFFFFFC;
-    s->pc           = s->csr_mtvec;
+    //s->pc           = s->csr_mtvec;
     s->pc_next      = s->csr_mtvec;    
     if (test_mask(s->csr_mstatus, MSTATUS_MIE)){                   
         set_mask(&(s->csr_mstatus), MSTATUS_MPIE);
@@ -267,7 +302,7 @@ void exec_ebreak(state *s){
     s->csr_mcause   = EXC_CAUSE_BREAKPOINT;
     s->csr_mtval    = s->pc;
     s->csr_mepc     = s->pc & 0xFFFFFFFC;
-    s->pc           = s->csr_mtvec;
+    //s->pc           = s->csr_mtvec;
     s->pc_next      = s->csr_mtvec;    
     if (test_mask(s->csr_mstatus, MSTATUS_MIE)){                   
         set_mask(&(s->csr_mstatus), MSTATUS_MPIE);
@@ -277,7 +312,7 @@ void exec_ebreak(state *s){
 }
 
 void exec_mret(state *s){
-    s->pc           = s->csr_mepc;
+    //s->pc           = s->csr_mepc;
     s->pc_next      = s->csr_mepc;
     
     if (test_mask(s->csr_mstatus, MSTATUS_MPIE)){                   
@@ -298,20 +333,20 @@ void cycle(state *s){
 
     //Test if timer interrupt has happened 
     if (s->csr_mip){
-        if ((s->csr_mstatus & MSTATUS_MIE) && (s->csr_mie & s->csr_mip & MIP_MTIP)){       
+        if ((s->csr_mstatus & MSTATUS_MIE) && (s->csr_mie & s->csr_mip & MIP_MTIP)){            
             s->csr_mcause   = IRQ_MACHINE_TIMER_INTERRUPT;
             s->csr_mtval    = 0;
             s->csr_mepc     = s->pc & 0xFFFFFFFC;
-            s->pc           = s->csr_mtvec;
+            //s->pc           = s->csr_mtvec;
             s->pc_next      = s->csr_mtvec;
             
             if (test_mask(s->csr_mstatus, MSTATUS_MIE)){                   
                 set_mask(&(s->csr_mstatus), MSTATUS_MPIE);
                 clear_mask(&(s->csr_mstatus), MSTATUS_MIE);                
             }  
-            
+            debug_stats(s,"Timer Tnterrupt",__LINE__);
             s->mcycles++;
-            goto endcycle;
+            goto updatepc;
         }
     }
 
@@ -320,7 +355,7 @@ void cycle(state *s){
         s->csr_mcause   = EXC_CAUSE_INST_ADDRESS_MISALIGNED;
         s->csr_mtval    = s->pc;
         s->csr_mepc     = s->pc & 0xFFFFFFFC;
-        s->pc           = s->csr_mtvec;
+        //s->pc           = s->csr_mtvec;
         s->pc_next      = s->csr_mtvec;
         if (test_mask(s->csr_mstatus, MSTATUS_MIE)){                   
             set_mask(&(s->csr_mstatus), MSTATUS_MPIE);
@@ -328,7 +363,7 @@ void cycle(state *s){
         }         
         
         s->mcycles++;
-        goto endcycle;
+        goto updatepc;
     }
     else{
         inst = mem_fetch(s, s->pc);
@@ -462,7 +497,7 @@ void cycle(state *s){
                         case 0x8:               
                             switch(funct5){             
                                 /* case 0x2: exec_sret(s); break; */                                                /* SRET */
-                                case 0x5: exit(0); break;                                                           /* WFI      note: like a NOP*/
+                                case 0x5: break;                                                                    /* WFI      note: like a NOP*/
                                 default: goto fail;             
                             }               
                             break;              
@@ -497,12 +532,12 @@ void cycle(state *s){
     if (bppc_enabled && bppc_found){
         printf("\npc=0x%08x inst=0x%08x opcode=0x%02x funct3=0x%x funct7=0x%02x funct5=0x%02x rs1=%02d rs2=%02d rd=%02d csr=0x%02x",
                 s->pc, inst, opcode, funct3, funct7, funct5, rs1, rs2, rd, csr);
-        printf("\nimm_i=0x%08x imm_s=0x%08x imm_sb=0x%08x imm_u=0x%08x imm_uj=0x%08x",
-                imm_i, imm_s, imm_sb, imm_u, imm_uj);
+        printf("\nimm_i=0x%08x imm_s=0x%08x imm_sb=0x%08x imm_u=0x%08x imm_uj=0x%08x ptrl=0x%08x ptrs=0x%08x",
+                imm_i, imm_s, imm_sb, imm_u, imm_uj, ptr_l, ptr_s);
         printf("\nmstatus=0x%04x mie=0x%04x mtvec=0x%08x mscratch=0x%08x mepc=0x%08x mcause=0x%04x mtval=0x%08x mip=0x%04x",
                 s->csr_mstatus, s->csr_mie, s->csr_mtvec, s->csr_mscratch, s->csr_mepc, s->csr_mcause, s->csr_mtval, s->csr_mip);
-        printf("\nmcycles=0x%08x mcompare=0x%08x uarttxdata=0x%02x",
-                s->mcycles, s->mcompare, (uint32_t)s->uarttxdata);
+        printf("\nmcycles=0x%08x mcompare=0x%08x ",
+                s->mcycles, s->mcompare );
         dumpregs(s);
 
         dump_memory=1;
@@ -513,26 +548,33 @@ void cycle(state *s){
             else{
                 int address = strtol(&strdebug[2], NULL, 16);
                 for (i=0; i<8; i++){
-                    ptrdebug = (uint32_t *)(s->mem + (address % MEM_SIZE));
-                    printf("Memory[0x%08x] = 0x%08x\n",address,  *ptrdebug);
+                    //ptrdebug = (uint32_t *)(s->mem + (uint32_t)(address % MEM_SIZE));
+                    ptrdebug = (uint32_t *)(&s->mem[0] + (uint32_t)(address % (uint32_t) MEM_SIZE));
+                    
+                    //printf("Memory[0x%08x] = 0x%08x\n",address,  *ptrdebug);
+                    printf("Memory[0x%08x] = 0x%08x",address,  *ptrdebug);
+                    printf("\ts->mem=0x%08x",&s->mem[0]);
+                    printf("\t&Memory[0x%08x] = 0x%08x\n",address,  ptrdebug);
                     address+=4;
                 }
             }
         }
     }
-#endif    
-
+#endif        
+    
+updatepc:    
     s->pc       = s->pc_next;
     s->pc_next  = s->pc_next + 4;
 
-endcycle:
-    if (s->mcycles>=s->mcompare) s->csr_mip |= MIP_MTIP;
-    if (s->pc == bppc)           bppc_found = 1;
+    if (s->mcycles > s->mcompare) s->csr_mip |= MIP_MTIP;
+    if (s->pc == bppc)            bppc_found = 1;
     return;
 
 fail:
-    printf("\ninvalid opcode (pc=0x%08x inst=0x%08x opcode=0x%02x funct3=0x%x funct7=0x%02x funct5=0x%02x)", s->pc, inst, opcode, funct3, funct7, funct5);
-    exit(0);
+#ifdef DEBUG     
+    printf("\ninvalid opcode (pc=0x%08x inst=0x%08x opcode=0x%02x funct3=0x%x funct7=0x%02x funct5=0x%02x)\n", s->pc, inst, opcode, funct3, funct7, funct5);
+#endif     
+    exit(-1);
 }
 
 int main(int argc, char *argv[]){
@@ -544,7 +586,7 @@ int main(int argc, char *argv[]){
 
     s = &context;
     memset(s, 0, sizeof(state));
-    memset(sram, 0xff, sizeof(MEM_SIZE));
+    memset(sram, 0xff, MEM_SIZE);
 
     if (argc >= 2){
         in = fopen(argv[1], "rb");

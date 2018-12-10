@@ -20,10 +20,9 @@ I have the intention to port this RISC-V simulator to the Lattice Mico8 (lm8) mi
 
 Current memory map is (it may change):
 
-- ROM           : 0x80000000 - 0x80005FFF (24KB)
-- RAM           : 0x80006000 - 0x80007FFF  (8KB)
-- UART          : 0x8000C000 - 0x8000C007   (8B)  
-- TIMER         : 0x8000C008 - 0x8000C00F   (8B)  
+- RAM           : 0x80000000 - 0x80007FFF (32KB)
+- UART          : 0x8000FF00 - 0x8000FF07   (8B)  
+- TIMER         : 0x8000FF10 - 0x8000FF17   (8B)  
 - BOOT_INST     : 0x8000F000 - 0x8000F3FF  (1KB)  
 
 
@@ -42,3 +41,23 @@ Efficiency:
 
 Total:
 - Dhrystones: x.xx DMIPS
+
+
+Notes to myself:
+- Rename
+rm -rf riscv-compliance/.git
+mv riscv-compliance riscv-compliance_ngrriscv
+mv riscv-tests riscv-tests_ngrriscv
+mv zephyr-zephyr-v1.13.0 zephyr-zephyr-v1.13.0_ngrriscv
+
+- Retrieve original tests
+git clone --recursive https://github.com/riscv/riscv-compliance
+rm -rf riscv-compliance/.git
+mkdir riscv-tests
+wget https://github.com/zephyrproject-rtos/zephyr/archive/zephyr-v1.13.0.tar.gz
+tar -xzf zephyr-v1.13.0.tar.gz
+
+- Make Patch'es
+diff -Naur riscv-compliance riscv-compliance_ngrriscv > riscv-compliance-ngrriscv.patch
+diff -Naur riscv-tests riscv-tests_ngrriscv > riscv-dhrystones_ngrriscv.patch
+diff -Naur zephyr-zephyr-v1.13.0 zephyr-zephyr-v1.13.0_ngrriscv > riscv-zephyr-ngrriscv.patch

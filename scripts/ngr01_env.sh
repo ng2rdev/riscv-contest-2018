@@ -1,6 +1,9 @@
 ########################################################################
 # Setup General Variables
 ########################################################################
+export IS_MSYS2_OS=$(grep -q MSYS_NT-6.1 <<< `uname -a` && echo "1" || echo "0")
+export IS_LINUX_OS=$(grep -q Linux <<< `uname -a` && echo "1" || echo "0")
+export BASE_DIR=`pwd`
 export BASE_DIR=`pwd`
 export XLEN=32
 export ARCH=riscv32

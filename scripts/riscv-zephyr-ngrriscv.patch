@@ -1,12 +1,12 @@
 diff -Naur zephyr-zephyr-v1.13.0/arch/riscv32/soc/riscv-privilege/ngrriscv/CMakeLists.txt zephyr-zephyr-v1.13.0_ngrriscv/arch/riscv32/soc/riscv-privilege/ngrriscv/CMakeLists.txt
 --- zephyr-zephyr-v1.13.0/arch/riscv32/soc/riscv-privilege/ngrriscv/CMakeLists.txt	1970-01-01 01:00:00.000000000 +0100
-+++ zephyr-zephyr-v1.13.0_ngrriscv/arch/riscv32/soc/riscv-privilege/ngrriscv/CMakeLists.txt	2018-10-23 14:14:42.000000000 +0100
++++ zephyr-zephyr-v1.13.0_ngrriscv/arch/riscv32/soc/riscv-privilege/ngrriscv/CMakeLists.txt	2018-11-20 20:55:03.898000000 +0000
 @@ -0,0 +1 @@
 +zephyr_sources()
 diff -Naur zephyr-zephyr-v1.13.0/arch/riscv32/soc/riscv-privilege/ngrriscv/Kconfig.defconfig.series zephyr-zephyr-v1.13.0_ngrriscv/arch/riscv32/soc/riscv-privilege/ngrriscv/Kconfig.defconfig.series
 --- zephyr-zephyr-v1.13.0/arch/riscv32/soc/riscv-privilege/ngrriscv/Kconfig.defconfig.series	1970-01-01 01:00:00.000000000 +0100
-+++ zephyr-zephyr-v1.13.0_ngrriscv/arch/riscv32/soc/riscv-privilege/ngrriscv/Kconfig.defconfig.series	2018-10-28 09:50:42.312500000 +0000
-@@ -0,0 +1,43 @@
++++ zephyr-zephyr-v1.13.0_ngrriscv/arch/riscv32/soc/riscv-privilege/ngrriscv/Kconfig.defconfig.series	2018-11-20 20:55:03.901000000 +0000
+@@ -0,0 +1,47 @@
 +if SOC_SERIES_RISCV32_NGRRISCV
 +
 +config SOC_SERIES
@@ -15,7 +15,7 @@ diff -Naur zephyr-zephyr-v1.13.0/arch/riscv32/soc/riscv-privilege/ngrriscv/Kconf
 +
 +config SYS_CLOCK_HW_CYCLES_PER_SEC
 +	int
-+	default 50000000
++	default 40000000
 +
 +config RISCV_SOC_INTERRUPT_INIT
 +	bool
@@ -31,7 +31,11 @@ diff -Naur zephyr-zephyr-v1.13.0/arch/riscv32/soc/riscv-privilege/ngrriscv/Kconf
 +
 +config NUM_IRQS
 +	int
-+	default 16
++	default 8
++
++config XIP
++	bool
++	default y
 +
 +config RISCV_ROM_BASE_ADDR
 +	hex
@@ -39,20 +43,20 @@ diff -Naur zephyr-zephyr-v1.13.0/arch/riscv32/soc/riscv-privilege/ngrriscv/Kconf
 +
 +config RISCV_ROM_SIZE
 +	hex
-+	default 0x4000
++	default 0x8000
 +
 +config RISCV_RAM_BASE_ADDR
 +	hex
-+	default	0x80004000
++	default	0x80008000
 +
 +config RISCV_RAM_SIZE
 +	hex
-+	default 0x4000
++	default 0x7000
 +
 +endif # SOC_SERIES_RISCV32_NGRRISCV
 diff -Naur zephyr-zephyr-v1.13.0/arch/riscv32/soc/riscv-privilege/ngrriscv/Kconfig.series zephyr-zephyr-v1.13.0_ngrriscv/arch/riscv32/soc/riscv-privilege/ngrriscv/Kconfig.series
 --- zephyr-zephyr-v1.13.0/arch/riscv32/soc/riscv-privilege/ngrriscv/Kconfig.series	1970-01-01 01:00:00.000000000 +0100
-+++ zephyr-zephyr-v1.13.0_ngrriscv/arch/riscv32/soc/riscv-privilege/ngrriscv/Kconfig.series	2018-10-28 09:33:01.626000000 +0000
++++ zephyr-zephyr-v1.13.0_ngrriscv/arch/riscv32/soc/riscv-privilege/ngrriscv/Kconfig.series	2018-11-20 20:55:03.904000000 +0000
 @@ -0,0 +1,11 @@
 +# Kconfig - RISCV32_NGRRISCV implementation
 +#
@@ -67,7 +71,7 @@ diff -Naur zephyr-zephyr-v1.13.0/arch/riscv32/soc/riscv-privilege/ngrriscv/Kconf
 +	Enable support for ngrriscv CPU module
 diff -Naur zephyr-zephyr-v1.13.0/arch/riscv32/soc/riscv-privilege/ngrriscv/Kconfig.soc zephyr-zephyr-v1.13.0_ngrriscv/arch/riscv32/soc/riscv-privilege/ngrriscv/Kconfig.soc
 --- zephyr-zephyr-v1.13.0/arch/riscv32/soc/riscv-privilege/ngrriscv/Kconfig.soc	1970-01-01 01:00:00.000000000 +0100
-+++ zephyr-zephyr-v1.13.0_ngrriscv/arch/riscv32/soc/riscv-privilege/ngrriscv/Kconfig.soc	2018-10-28 10:01:59.956500000 +0000
++++ zephyr-zephyr-v1.13.0_ngrriscv/arch/riscv32/soc/riscv-privilege/ngrriscv/Kconfig.soc	2018-11-20 20:55:03.906000000 +0000
 @@ -0,0 +1,9 @@
 +choice
 +prompt "Gnarly Grey UPDuino ngrriscv system implementation"
@@ -80,7 +84,7 @@ diff -Naur zephyr-zephyr-v1.13.0/arch/riscv32/soc/riscv-privilege/ngrriscv/Kconf
 +endchoice
 diff -Naur zephyr-zephyr-v1.13.0/arch/riscv32/soc/riscv-privilege/ngrriscv/linker.ld zephyr-zephyr-v1.13.0_ngrriscv/arch/riscv32/soc/riscv-privilege/ngrriscv/linker.ld
 --- zephyr-zephyr-v1.13.0/arch/riscv32/soc/riscv-privilege/ngrriscv/linker.ld	1970-01-01 01:00:00.000000000 +0100
-+++ zephyr-zephyr-v1.13.0_ngrriscv/arch/riscv32/soc/riscv-privilege/ngrriscv/linker.ld	2018-10-28 11:18:52.256000000 +0000
++++ zephyr-zephyr-v1.13.0_ngrriscv/arch/riscv32/soc/riscv-privilege/ngrriscv/linker.ld	2018-11-20 20:55:03.919000000 +0000
 @@ -0,0 +1,161 @@
 +/*
 + * Copyright (c) 2016-2017 Jean-Paul Etienne <fractalclone@gmail.com>
@@ -117,7 +121,7 @@ diff -Naur zephyr-zephyr-v1.13.0/arch/riscv32/soc/riscv-privilege/ngrriscv/linke
 +MEMORY
 +{
 +    ROM (rx)  : ORIGIN = CONFIG_RISCV_ROM_BASE_ADDR, LENGTH = CONFIG_RISCV_ROM_SIZE
-+    RAM (rwx) : ORIGIN = CONFIG_RISCV_RAM_BASE_ADDR, LENGTH = RISCV_RAM_SIZE
++    RAM (rwx) : ORIGIN = CONFIG_RISCV_RAM_BASE_ADDR, LENGTH = CONFIG_RISCV_RAM_SIZE
 +    /* Used by and documented in include/linker/intlist.ld */
 +    IDT_LIST  (wx)      : ORIGIN = 0xFFFFF7FF, LENGTH = 2K
 +}
@@ -245,7 +249,7 @@ diff -Naur zephyr-zephyr-v1.13.0/arch/riscv32/soc/riscv-privilege/ngrriscv/linke
 +}
 diff -Naur zephyr-zephyr-v1.13.0/arch/riscv32/soc/riscv-privilege/ngrriscv/soc.h zephyr-zephyr-v1.13.0_ngrriscv/arch/riscv32/soc/riscv-privilege/ngrriscv/soc.h
 --- zephyr-zephyr-v1.13.0/arch/riscv32/soc/riscv-privilege/ngrriscv/soc.h	1970-01-01 01:00:00.000000000 +0100
-+++ zephyr-zephyr-v1.13.0_ngrriscv/arch/riscv32/soc/riscv-privilege/ngrriscv/soc.h	2018-10-28 10:56:45.065000000 +0000
++++ zephyr-zephyr-v1.13.0_ngrriscv/arch/riscv32/soc/riscv-privilege/ngrriscv/soc.h	2018-11-23 09:25:32.845323900 +0000
 @@ -0,0 +1,25 @@
 +#ifndef __RISCV32_NGRRISCV_SOC_H_
 +#define __RISCV32_NGRRISCV_SOC_H_
@@ -253,7 +257,7 @@ diff -Naur zephyr-zephyr-v1.13.0/arch/riscv32/soc/riscv-privilege/ngrriscv/soc.h
 +#include <soc_common.h>
 +
 +/* UART Configuration */
-+#define UART_BASE_ADDRESS        (0x8000C000)
++#define UART_BASE_ADDRESS        (0x8000FF00)
 +#define UART_DATA_RX_REG         (UART_BASE_ADDRESS + 0x0)
 +#define UART_DATA_TX_REG         (UART_BASE_ADDRESS + 0x0)
 +#define UART_STATUS_REG          (UART_BASE_ADDRESS + 0x4)
@@ -264,8 +268,8 @@ diff -Naur zephyr-zephyr-v1.13.0/arch/riscv32/soc/riscv-privilege/ngrriscv/soc.h
 +#define SEND_TX_BIT              (1<<4)
 +
 +/* Timer configuration */
-+#define RISCV_MTIME_BASE         0x8000C008
-+#define RISCV_MTIMECMP_BASE      0x8000C00C
++#define RISCV_MTIME_BASE         0x8000FF10
++#define RISCV_MTIMECMP_BASE      0x8000FF18
 +
 +/* lib-c hooks required RAM defined variables */
 +#define RISCV_RAM_BASE           CONFIG_RISCV_RAM_BASE_ADDR
@@ -274,7 +278,7 @@ diff -Naur zephyr-zephyr-v1.13.0/arch/riscv32/soc/riscv-privilege/ngrriscv/soc.h
 +#endif /* __RISCV32_NGRRISCV_SOC_H_ */
 diff -Naur zephyr-zephyr-v1.13.0/boards/riscv32/ggupduino2_ngrriscv/board.h zephyr-zephyr-v1.13.0_ngrriscv/boards/riscv32/ggupduino2_ngrriscv/board.h
 --- zephyr-zephyr-v1.13.0/boards/riscv32/ggupduino2_ngrriscv/board.h	1970-01-01 01:00:00.000000000 +0100
-+++ zephyr-zephyr-v1.13.0_ngrriscv/boards/riscv32/ggupduino2_ngrriscv/board.h	2018-10-23 14:14:42.000000000 +0100
++++ zephyr-zephyr-v1.13.0_ngrriscv/boards/riscv32/ggupduino2_ngrriscv/board.h	2018-11-20 20:55:03.935000000 +0000
 @@ -0,0 +1,14 @@
 +/*
 + * Copyright (c) 2018 MicroFPGA UG
@@ -292,12 +296,12 @@ diff -Naur zephyr-zephyr-v1.13.0/boards/riscv32/ggupduino2_ngrriscv/board.h zeph
 +#endif /* __INC_BOARD_H */
 diff -Naur zephyr-zephyr-v1.13.0/boards/riscv32/ggupduino2_ngrriscv/CMakeLists.txt zephyr-zephyr-v1.13.0_ngrriscv/boards/riscv32/ggupduino2_ngrriscv/CMakeLists.txt
 --- zephyr-zephyr-v1.13.0/boards/riscv32/ggupduino2_ngrriscv/CMakeLists.txt	1970-01-01 01:00:00.000000000 +0100
-+++ zephyr-zephyr-v1.13.0_ngrriscv/boards/riscv32/ggupduino2_ngrriscv/CMakeLists.txt	2018-10-23 14:14:42.000000000 +0100
++++ zephyr-zephyr-v1.13.0_ngrriscv/boards/riscv32/ggupduino2_ngrriscv/CMakeLists.txt	2018-11-20 20:55:03.946000000 +0000
 @@ -0,0 +1 @@
 +zephyr_library_include_directories(${PROJECT_SOURCE_DIR}/drivers)
 diff -Naur zephyr-zephyr-v1.13.0/boards/riscv32/ggupduino2_ngrriscv/doc/ggupduino2_ngrriscv.rst zephyr-zephyr-v1.13.0_ngrriscv/boards/riscv32/ggupduino2_ngrriscv/doc/ggupduino2_ngrriscv.rst
 --- zephyr-zephyr-v1.13.0/boards/riscv32/ggupduino2_ngrriscv/doc/ggupduino2_ngrriscv.rst	1970-01-01 01:00:00.000000000 +0100
-+++ zephyr-zephyr-v1.13.0_ngrriscv/boards/riscv32/ggupduino2_ngrriscv/doc/ggupduino2_ngrriscv.rst	2018-10-28 11:51:42.021000000 +0000
++++ zephyr-zephyr-v1.13.0_ngrriscv/boards/riscv32/ggupduino2_ngrriscv/doc/ggupduino2_ngrriscv.rst	2018-11-20 20:55:03.952000000 +0000
 @@ -0,0 +1,7 @@
 +.. _ggupduino2_ngrriscv:
 +
@@ -308,7 +312,7 @@ diff -Naur zephyr-zephyr-v1.13.0/boards/riscv32/ggupduino2_ngrriscv/doc/ggupduin
 +http://www.latticesemi.com/en/Products/DevelopmentBoardsAndKits/GnarlyGreyUPDuinoBoard
 diff -Naur zephyr-zephyr-v1.13.0/boards/riscv32/ggupduino2_ngrriscv/ggupduino2_ngrriscv.yaml zephyr-zephyr-v1.13.0_ngrriscv/boards/riscv32/ggupduino2_ngrriscv/ggupduino2_ngrriscv.yaml
 --- zephyr-zephyr-v1.13.0/boards/riscv32/ggupduino2_ngrriscv/ggupduino2_ngrriscv.yaml	1970-01-01 01:00:00.000000000 +0100
-+++ zephyr-zephyr-v1.13.0_ngrriscv/boards/riscv32/ggupduino2_ngrriscv/ggupduino2_ngrriscv.yaml	2018-10-28 09:59:11.396500000 +0000
++++ zephyr-zephyr-v1.13.0_ngrriscv/boards/riscv32/ggupduino2_ngrriscv/ggupduino2_ngrriscv.yaml	2018-11-20 20:55:03.956000000 +0000
 @@ -0,0 +1,11 @@
 +identifier: ggupduino2_ngrriscv
 +name: Gnarly Grey UPDuino with ngrriscv target
@@ -316,15 +320,15 @@ diff -Naur zephyr-zephyr-v1.13.0/boards/riscv32/ggupduino2_ngrriscv/ggupduino2_n
 +arch: riscv32
 +toolchain:
 +  - zephyr
-+ram: 32
++ram: 24
 +testing:
 +  ignore_tags:
 +    - net
 +    - bluetooth
 diff -Naur zephyr-zephyr-v1.13.0/boards/riscv32/ggupduino2_ngrriscv/ggupduino2_ngrriscv_defconfig zephyr-zephyr-v1.13.0_ngrriscv/boards/riscv32/ggupduino2_ngrriscv/ggupduino2_ngrriscv_defconfig
 --- zephyr-zephyr-v1.13.0/boards/riscv32/ggupduino2_ngrriscv/ggupduino2_ngrriscv_defconfig	1970-01-01 01:00:00.000000000 +0100
-+++ zephyr-zephyr-v1.13.0_ngrriscv/boards/riscv32/ggupduino2_ngrriscv/ggupduino2_ngrriscv_defconfig	2018-10-28 10:30:09.543500000 +0000
-@@ -0,0 +1,11 @@
++++ zephyr-zephyr-v1.13.0_ngrriscv/boards/riscv32/ggupduino2_ngrriscv/ggupduino2_ngrriscv_defconfig	2018-11-22 21:41:00.348000000 +0000
+@@ -0,0 +1,14 @@
 +CONFIG_RISCV32=y
 +CONFIG_SOC_SERIES_RISCV32_NGRRISCV=y
 +CONFIG_SOC_RISCV32_NGRRISCV=y
@@ -333,19 +337,22 @@ diff -Naur zephyr-zephyr-v1.13.0/boards/riscv32/ggupduino2_ngrriscv/ggupduino2_n
 +CONFIG_SERIAL=y
 +CONFIG_UART_NGRRISCV=y
 +CONFIG_UART_CONSOLE=y
++CONFIG_UART_CONSOLE_ON_DEV_NAME="uart0"
 +CONFIG_PLIC=n
 +CONFIG_RISCV_MACHINE_TIMER=y
 +CONFIG_GPIO=n
++CONFIG_BOOT_BANNER=y
++CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC=40000000
 diff -Naur zephyr-zephyr-v1.13.0/boards/riscv32/ggupduino2_ngrriscv/Kconfig.board zephyr-zephyr-v1.13.0_ngrriscv/boards/riscv32/ggupduino2_ngrriscv/Kconfig.board
 --- zephyr-zephyr-v1.13.0/boards/riscv32/ggupduino2_ngrriscv/Kconfig.board	1970-01-01 01:00:00.000000000 +0100
-+++ zephyr-zephyr-v1.13.0_ngrriscv/boards/riscv32/ggupduino2_ngrriscv/Kconfig.board	2018-10-28 09:26:58.740000000 +0000
++++ zephyr-zephyr-v1.13.0_ngrriscv/boards/riscv32/ggupduino2_ngrriscv/Kconfig.board	2018-11-20 20:55:03.980000000 +0000
 @@ -0,0 +1,3 @@
 +config BOARD_GGUPDUINO2_NGRRISCV
 +	bool "Gnarly Grey UPDuinoV2 dev board with ngrriscv CPU"
 +	depends on SOC_RISCV32_NGRRISCV
 diff -Naur zephyr-zephyr-v1.13.0/boards/riscv32/ggupduino2_ngrriscv/Kconfig.defconfig zephyr-zephyr-v1.13.0_ngrriscv/boards/riscv32/ggupduino2_ngrriscv/Kconfig.defconfig
 --- zephyr-zephyr-v1.13.0/boards/riscv32/ggupduino2_ngrriscv/Kconfig.defconfig	1970-01-01 01:00:00.000000000 +0100
-+++ zephyr-zephyr-v1.13.0_ngrriscv/boards/riscv32/ggupduino2_ngrriscv/Kconfig.defconfig	2018-10-28 09:27:11.984000000 +0000
++++ zephyr-zephyr-v1.13.0_ngrriscv/boards/riscv32/ggupduino2_ngrriscv/Kconfig.defconfig	2018-11-20 20:55:03.993000000 +0000
 @@ -0,0 +1,6 @@
 +if BOARD_GGUPDUINO2_NGRRISCV
 +
@@ -355,7 +362,7 @@ diff -Naur zephyr-zephyr-v1.13.0/boards/riscv32/ggupduino2_ngrriscv/Kconfig.defc
 +endif
 diff -Naur zephyr-zephyr-v1.13.0/drivers/serial/CMakeLists.txt zephyr-zephyr-v1.13.0_ngrriscv/drivers/serial/CMakeLists.txt
 --- zephyr-zephyr-v1.13.0/drivers/serial/CMakeLists.txt	2018-09-11 01:14:13.000000000 +0100
-+++ zephyr-zephyr-v1.13.0_ngrriscv/drivers/serial/CMakeLists.txt	2018-10-27 18:44:45.613500000 +0100
++++ zephyr-zephyr-v1.13.0_ngrriscv/drivers/serial/CMakeLists.txt	2018-11-20 20:55:04.003000000 +0000
 @@ -23,5 +23,8 @@
  zephyr_library_sources_if_kconfig(uart_stm32.c)
  zephyr_library_sources_if_kconfig(uart_sam0.c)
@@ -367,7 +374,7 @@ diff -Naur zephyr-zephyr-v1.13.0/drivers/serial/CMakeLists.txt zephyr-zephyr-v1.
 +
 diff -Naur zephyr-zephyr-v1.13.0/drivers/serial/Kconfig zephyr-zephyr-v1.13.0_ngrriscv/drivers/serial/Kconfig
 --- zephyr-zephyr-v1.13.0/drivers/serial/Kconfig	2018-09-11 01:14:13.000000000 +0100
-+++ zephyr-zephyr-v1.13.0_ngrriscv/drivers/serial/Kconfig	2018-10-27 18:44:31.309000000 +0100
++++ zephyr-zephyr-v1.13.0_ngrriscv/drivers/serial/Kconfig	2018-11-20 20:55:04.012000000 +0000
 @@ -101,4 +101,6 @@
  
  source "drivers/serial/Kconfig.sam0"
@@ -377,7 +384,7 @@ diff -Naur zephyr-zephyr-v1.13.0/drivers/serial/Kconfig zephyr-zephyr-v1.13.0_ng
  endif
 diff -Naur zephyr-zephyr-v1.13.0/drivers/serial/Kconfig.ngrriscv zephyr-zephyr-v1.13.0_ngrriscv/drivers/serial/Kconfig.ngrriscv
 --- zephyr-zephyr-v1.13.0/drivers/serial/Kconfig.ngrriscv	1970-01-01 01:00:00.000000000 +0100
-+++ zephyr-zephyr-v1.13.0_ngrriscv/drivers/serial/Kconfig.ngrriscv	2018-10-28 09:55:11.663500000 +0000
++++ zephyr-zephyr-v1.13.0_ngrriscv/drivers/serial/Kconfig.ngrriscv	2018-11-20 20:55:04.023000000 +0000
 @@ -0,0 +1,6 @@
 +menuconfig UART_NGRRISCV
 +	bool "ngrriscv UART driver"
@@ -387,7 +394,7 @@ diff -Naur zephyr-zephyr-v1.13.0/drivers/serial/Kconfig.ngrriscv zephyr-zephyr-v
 +          Enable the ngrriscv UART driver.
 diff -Naur zephyr-zephyr-v1.13.0/drivers/serial/uart_ngrriscv.c zephyr-zephyr-v1.13.0_ngrriscv/drivers/serial/uart_ngrriscv.c
 --- zephyr-zephyr-v1.13.0/drivers/serial/uart_ngrriscv.c	1970-01-01 01:00:00.000000000 +0100
-+++ zephyr-zephyr-v1.13.0_ngrriscv/drivers/serial/uart_ngrriscv.c	2018-10-28 10:57:13.354000000 +0000
++++ zephyr-zephyr-v1.13.0_ngrriscv/drivers/serial/uart_ngrriscv.c	2018-11-22 21:40:21.766000000 +0000
 @@ -0,0 +1,54 @@
 +/*
 + * Copyright (c) 2018 Nelson Ribeiro
@@ -436,7 +443,7 @@ diff -Naur zephyr-zephyr-v1.13.0/drivers/serial/uart_ngrriscv.c zephyr-zephyr-v1
 +};
 +
 +
-+DEVICE_AND_API_INIT(uart_ngrriscv_0, "NGRRISCV_UART",
++DEVICE_AND_API_INIT(uart_ngrriscv_0, "uart0",
 +		    uart_ngrriscv_init, NULL, NULL,
 +		    PRE_KERNEL_1, CONFIG_KERNEL_INIT_PRIORITY_DEVICE,
 +		    (void *)&uart_ngrriscv_driver_api);

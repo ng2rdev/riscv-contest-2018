@@ -1291,8 +1291,8 @@ diff -Naur riscv-tests/src/stdlib.c riscv-tests_ngrriscv/src/stdlib.c
 +//#define UART_BASE  ((volatile uint32_t*)(0xF0000))
 +//#define MTIME_BASE ((volatile uint32_t*)(0xF0010))
 +
-+#define UART_BASE_ADDRESS        (0x8000C000)
-+#define TIMER_BASE_ADDRESS       (0x8000C008)
++#define UART_BASE_ADDRESS        (0x8000FF00)
++#define TIMER_BASE_ADDRESS       (0x8000FF10)
 +#define UART_DATA_TX_REG         (UART_BASE_ADDRESS + 0x0)
 +#define UART_STATUS_REG          (UART_BASE_ADDRESS + 0x4)
 +#define UART_CONTROL_REG         (UART_BASE_ADDRESS + 0x4)

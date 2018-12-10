@@ -59,6 +59,10 @@ then
         export RISCV=/apps/compilers/riscv-none-embed        
         export PATH=$PATH:$RISCV/bin
     fi
+    cp -f /usr/bin/python3.6 /usr/bin/python3
+    cp -f /usr/bin/python3.6 /usr/local/bin/python3
+    cp -f /usr/bin/pip3.6 /usr/bin/pip3
+    cp -f /usr/bin/pip3.6 /usr/local/bin/pip3        
 fi
 if [ $IS_LINUX_OS -eq 1 ] 
 then

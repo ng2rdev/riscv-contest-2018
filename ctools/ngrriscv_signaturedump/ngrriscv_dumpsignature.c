@@ -10,7 +10,7 @@
  *
  */    
     
-    #define UART_BASE_ADDRESS        (0x8000C000)                                                      
+    #define UART_BASE_ADDRESS        (0x8000FF00)                                                      
     #define UART_DATA_RXTX_REG       (UART_BASE_ADDRESS + 0x0)                                         
     #define UART_STATUS_REG          (UART_BASE_ADDRESS + 0x4)                                         
     #define UART_CONTROL_REG         (UART_BASE_ADDRESS + 0x4)                                         
@@ -43,11 +43,8 @@
         unsigned int *sigend   = &end_signature;                                             
         unsigned int *cp       = sigbegin;                                                                            
         while (cp < sigend){                                                                           
-            printInt2Hex(*(cp+3));
-            printInt2Hex(*(cp+2));
-            printInt2Hex(*(cp+1));
             printInt2Hex(*(cp+0));
             outbyte('\n');
-            cp+=4;    
+            cp++;    
         }                                                                                               
     }
